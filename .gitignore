@@ -1,0 +1,8 @@
+# temporary and local-only files
+_tmp_video/
+.ui-check/
+*.tmp
+~$*
+.DS_Store
+Thumbs.db
+.claude/settings.local.json

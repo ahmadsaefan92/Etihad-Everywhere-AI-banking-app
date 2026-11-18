@@ -1,0 +1,578 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<title>Etihad Everywhere App</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600&family=Poppins:ital,wght@1,800&display=swap">
+<style>
+/* Mobile app prototype (Hub tab) in the bank app's own visual language: white cards on a soft grey ground, orange tiles,
+   taupe for investment, purple for insurance. The new Lifestyle tile "Etihad Everywhere" is deliberately different:
+   a burgundy-to-orange tile with a pin and a live radar pulse. Tapping it opens the customer feature as a full screen. */
+:root{
+  color-scheme:light;
+  --ground:#F2F2F4; --card:#FFFFFF; --ink:#1E1E24; --ink-2:#4A4A55; --muted:#6B6B76; --line:#E7E5EA;
+  --o1:#FF7A3D; --o2:#F04E1A; --o-soft:#FFF0E8; --o-text:#C2410C;
+  --amber1:#FFA53A; --amber2:#FF7E1F;
+  --taupe1:#BBA999; --taupe2:#9E8B7B;
+  --plum1:#5E3B72; --plum2:#47295A;
+  --burg1:#8A1030; --burg2:#5E0A22; --cream:#FBEFE3; --wine:#7A0C27;
+  --ok:#15803D; --ok-soft:#E7F6EC; --warn:#B45309; --warn-soft:#FDF3E2; --bad:#B91C1C; --bad-soft:#FDECEC;
+  --f:"Lexend","Segoe UI",system-ui,sans-serif; --f-brand:Poppins,"Segoe UI",Arial,sans-serif;
+  --r:22px; --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:#E9E6EC;color:var(--ink);font-family:var(--f);font-size:15px;line-height:1.45;touch-action:manipulation;-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--o2);outline-offset:2px;border-radius:10px}
+.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+.num{font-variant-numeric:tabular-nums}
+.ico{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* desktop: show the app inside a phone; phone: full screen */
+.stage{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+.proto{font-size:.78rem;color:#5B5560;text-align:center;margin:0 0 10px}
+.phone{position:relative;width:390px;height:844px;max-height:calc(100vh - 70px);background:var(--ground);border-radius:46px;box-shadow:0 0 0 10px #111,0 30px 70px rgb(0 0 0 / .3);overflow:hidden;display:flex;flex-direction:column}
+@media (max-width:500px){.stage{padding:0;display:block}.proto{display:none}.phone{width:100%;height:100vh;height:100dvh;max-height:none;border-radius:0;box-shadow:none}}
+
+/* top bar */
+.topbar{display:flex;align-items:center;gap:10px;padding:calc(14px + env(safe-area-inset-top,0px)) 18px 12px;background:var(--card);box-shadow:0 2px 10px rgb(0 0 0 / .05);z-index:5}
+.avatar{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;background:var(--card)}
+.avatar span{width:30px;height:30px;border-radius:50%;background:linear-gradient(160deg,var(--o1),var(--o2));display:grid;place-items:center;color:#fff}
+.plan-chip{margin-inline:auto;display:inline-flex;align-items:center;gap:6px;background:linear-gradient(160deg,var(--o1),var(--o2));color:#fff;border:0;border-radius:999px;padding:8px 16px;font-weight:500;cursor:pointer;min-height:40px;transition:transform .2s var(--ease)}
+.plan-chip:active{transform:scale(.97)}
+.icon-btn{position:relative;width:44px;height:44px;border:0;background:none;border-radius:50%;display:grid;place-items:center;cursor:pointer;color:var(--ink)}
+.icon-btn:hover{background:var(--ground)}
+.icon-btn .dot{position:absolute;top:9px;inset-inline-end:10px;width:9px;height:9px;border-radius:50%;background:var(--o2);border:2px solid var(--card)}
+
+/* hub */
+.scroll{flex:1;overflow:auto;overscroll-behavior:contain;padding:14px 14px 18px;display:grid;gap:14px;align-content:start}
+.sect{background:var(--card);border-radius:var(--r);padding:16px 12px 8px}
+.sect h2{font-size:1.05rem;font-weight:500;color:var(--ink-2);margin:2px 8px 12px}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px 6px;list-style:none;margin:0;padding:0}
+.tile{display:grid;justify-items:center;gap:7px;background:none;border:0;padding:0 0 8px;cursor:pointer;color:var(--ink);text-align:center;min-width:0}
+.tile .t{position:relative;width:66px;height:66px;border-radius:18px;display:grid;place-items:center;color:#fff;overflow:hidden;transition:transform .2s var(--ease),box-shadow .2s var(--ease)}
+.tile .t::before{content:"";position:absolute;inset:auto -20% -35% -20%;height:70%;background:rgb(255 255 255 / .12);border-radius:50% 50% 0 0;transform:rotate(-8deg)}
+.tile .t .ico{position:relative;width:28px;height:28px}
+.tile:hover .t{transform:translateY(-2px);box-shadow:0 8px 18px rgb(0 0 0 / .14)}
+.tile:active .t{transform:scale(.96)}
+.tile .l{font-size:.76rem;line-height:1.25;overflow-wrap:normal;word-break:normal;hyphens:manual;max-width:100%}
+.t-prod{background:linear-gradient(160deg,var(--o1),var(--o2))}
+.t-inv{background:linear-gradient(160deg,var(--taupe1),var(--taupe2))}
+.t-life{background:linear-gradient(160deg,var(--amber1),var(--amber2))}
+.t-ins{background:linear-gradient(160deg,var(--plum1),var(--plum2))}
+.new{position:absolute;top:5px;inset-inline-start:7px;font-size:.58rem;font-weight:600;letter-spacing:.04em;z-index:1}
+.star{position:absolute;top:5px;inset-inline-end:7px;width:10px;height:10px;z-index:1;fill:#fff}
+
+/* the unique Etihad Everywhere tile */
+.t-ee{background:radial-gradient(120% 120% at 20% 0%,#C2185B00 0,#0000 40%),linear-gradient(150deg,var(--burg1) 0%,#B0283F 45%,var(--o1) 100%);box-shadow:0 6px 18px rgb(138 16 48 / .35)}
+.t-ee::before{display:none}
+.t-ee .pulse{position:absolute;left:50%;top:58%;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;border:2px solid rgb(255 255 255 / .7);animation:radar 2.2s var(--ease) infinite}
+.t-ee .pulse.p2{animation-delay:1.1s}
+.t-ee svg.pin{position:relative;width:30px;height:36px;margin-top:-6px;filter:drop-shadow(0 2px 3px rgb(0 0 0 / .25))}
+.t-ee .glint{position:absolute;inset:0;background:linear-gradient(115deg,transparent 30%,rgb(255 255 255 / .28) 45%,transparent 60%);transform:translateX(-120%);animation:glint 4s var(--ease) infinite 1s}
+.tile.ee .l{font-weight:600;color:var(--wine)}
+@keyframes radar{0%{transform:scale(.5);opacity:.9}100%{transform:scale(2.6);opacity:0}}
+@keyframes glint{0%,60%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+
+/* bottom tab bar */
+.tabbar{display:grid;grid-template-columns:repeat(3,1fr);background:var(--card);border-top:1px solid var(--line);padding:8px 8px calc(10px + env(safe-area-inset-bottom,0px))}
+.tabbar button{display:grid;justify-items:center;gap:3px;background:none;border:0;cursor:pointer;color:#8D8A93;min-height:52px;font-size:.84rem}
+.tabbar button[aria-current="page"]{color:var(--o2)}
+.tabbar .ico{width:28px;height:28px}
+
+/* full-screen feature */
+.screen{position:absolute;inset:0;background:var(--ground);display:flex;flex-direction:column;z-index:20;animation:slidein .32s var(--ease) both}
+@keyframes slidein{from{transform:translateX(100%)}to{transform:none}}
+.ee-head{background:linear-gradient(150deg,var(--burg2),var(--burg1) 55%,#B0283F);color:#fff;padding:calc(12px + env(safe-area-inset-top,0px)) 14px 14px;display:grid;gap:12px;position:relative;overflow:hidden}
+.ee-head::after{content:"";position:absolute;width:260px;height:260px;border-radius:50%;inset-inline-end:-90px;top:-120px;background:radial-gradient(circle,rgb(255 122 61 / .45),transparent 65%)}
+.ee-top{display:flex;align-items:center;gap:8px;position:relative;z-index:1}
+.ee-top .icon-btn{color:#fff}.ee-top .icon-btn:hover{background:rgb(255 255 255 / .12)}
+.ee-brand{font-family:var(--f-brand);font-style:italic;font-weight:800;font-size:1.15rem;margin-inline:auto}
+.ee-brand span{color:#FFC3A6}
+.ee-hello{position:relative;z-index:1;display:grid;gap:2px}
+.ee-hello small{opacity:.8}
+.ee-hello b{font-size:1.25rem;font-weight:500}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:rgb(255 255 255 / .12);border-radius:14px;padding:4px;position:relative;z-index:1}
+.seg button{border:0;border-radius:10px;background:none;color:#fff;padding:8px 2px;cursor:pointer;font-size:.82rem;min-height:40px;transition:background-color .2s var(--ease),color .2s var(--ease)}
+.seg button[aria-selected="true"]{background:#fff;color:var(--wine);font-weight:600}
+.panel{flex:1;overflow:auto;overscroll-behavior:contain;padding:14px;display:grid;gap:12px;align-content:start}
+.card{background:var(--card);border-radius:18px;padding:16px;display:grid;gap:10px;box-shadow:0 1px 2px rgb(0 0 0 / .04)}
+.card h3{margin:0;font-size:1rem;font-weight:600}
+.card .sub{color:var(--muted);font-size:.84rem}
+.big{font-size:2rem;font-weight:600;letter-spacing:-.01em}
+.big small{font-size:.9rem;color:var(--muted);font-weight:400}
+.row{display:flex;align-items:center;gap:10px}
+.row.sb{justify-content:space-between}
+.stat{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat div{background:var(--ground);border-radius:14px;padding:10px 12px;display:grid;gap:2px}
+.stat b{font-size:1.1rem;font-weight:600}
+.stat small{color:var(--muted);font-size:.76rem}
+.rankbar{height:10px;border-radius:6px;background:var(--line);overflow:hidden}
+.rankbar span{display:block;height:100%;width:62%;background:linear-gradient(90deg,var(--burg1),var(--o1));border-radius:6px;transform-origin:left;animation:fill .9s var(--ease) both}
+@keyframes fill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.ranks{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.ranks div{border:1px solid var(--line);border-radius:12px;padding:8px 4px;text-align:center;font-size:.74rem;color:var(--muted)}
+.ranks div b{display:block;font-size:.92rem;color:var(--ink)}
+.ranks div.on{border-color:var(--o2);background:var(--o-soft);color:var(--o-text)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:46px;border-radius:14px;border:1px solid var(--line);background:var(--card);padding:10px 16px;font-weight:500;cursor:pointer;transition:background-color .2s var(--ease),border-color .2s var(--ease),transform .15s var(--ease)}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:linear-gradient(160deg,var(--o1),var(--o2));border-color:transparent;color:#fff}
+.btn.ghost{background:none;border-color:transparent;color:var(--o-text)}
+.btn.full{width:100%}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:.74rem;font-weight:600}
+.p-ok{background:var(--ok-soft);color:var(--ok)}.p-warn{background:var(--warn-soft);color:var(--warn)}.p-o{background:var(--o-soft);color:var(--o-text)}.p-w{background:#F6E6EA;color:var(--wine)}
+.reco{border:1.5px solid var(--o2);background:linear-gradient(160deg,#FFF6F1,#fff)}
+.list{display:grid;gap:8px;list-style:none;margin:0;padding:0}
+.offer{display:grid;grid-template-columns:48px 1fr auto;gap:12px;align-items:center;padding:10px;border-radius:14px;background:var(--ground);border:1px solid transparent;cursor:pointer;width:100%;text-align:start;transition:border-color .2s var(--ease),background-color .2s var(--ease)}
+.offer:hover,.offer[aria-expanded="true"]{border-color:var(--o2);background:#fff}
+.offer .lg{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-weight:600;color:#fff;font-size:1.05rem}
+.offer b{display:block;font-weight:500}
+.offer small{color:var(--muted);font-size:.78rem}
+.offer .v{font-weight:600;color:var(--o-text);white-space:nowrap}
+.calc{display:grid;gap:10px;background:var(--o-soft);border-radius:14px;padding:12px}
+.field{display:grid;gap:4px;font-size:.84rem;color:var(--ink-2)}
+.field input{border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-height:46px;background:#fff;font-size:1rem}
+.line{display:flex;justify-content:space-between;gap:10px;font-size:.9rem}
+.line.total{border-top:1px dashed #E6BFA8;padding-top:8px;font-weight:600;color:var(--o-text)}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:6px 0;border-bottom:1px solid var(--line)}
+.toggle:last-child{border-bottom:0}
+.toggle span{display:grid;gap:2px}.toggle small{color:var(--muted);font-size:.78rem}
+.switch{appearance:none;-webkit-appearance:none;width:52px;height:32px;border-radius:999px;background:#D4D1D8;position:relative;cursor:pointer;flex:none;transition:background-color .2s var(--ease)}
+.switch::after{content:"";position:absolute;top:3px;inset-inline-start:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgb(0 0 0 / .25);transition:transform .2s var(--ease)}
+.switch:checked{background:var(--o2)}
+.switch:checked::after{transform:translateX(20px)}
+.notif{display:grid;gap:6px;padding:12px;border-radius:16px;background:var(--card);border:1px solid var(--line)}
+.notif .app{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--muted)}
+.notif .app i{width:20px;height:20px;border-radius:6px;background:linear-gradient(150deg,var(--burg1),var(--o1));display:inline-block}
+.notif b{font-weight:600}
+.notif .why{font-size:.8rem;color:var(--ink-2);background:var(--ground);border-radius:10px;padding:8px 10px}
+.empty{display:grid;justify-items:center;gap:10px;text-align:center;color:var(--muted);padding:22px 10px}
+.empty .ico{width:34px;height:34px;color:var(--o2)}
+
+/* sheet, dialog, toast */
+.scrim{position:absolute;inset:0;background:rgb(20 16 24 / .45);z-index:40;display:flex;align-items:flex-end;animation:fade .2s var(--ease) both}
+@keyframes fade{from{background:rgb(20 16 24 / 0)}}
+.sheet{width:100%;max-height:85%;overflow:auto;overscroll-behavior:contain;background:#fff;border-radius:24px 24px 0 0;padding:10px 16px calc(18px + env(safe-area-inset-bottom,0px));display:grid;gap:12px;animation:up .28s var(--ease) both}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+.sheet .grab{width:40px;height:5px;border-radius:3px;background:var(--line);justify-self:center}
+.sheet h3{margin:0;font-size:1.08rem}
+.plan{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:12px;border:1px solid var(--line);border-radius:14px}
+.plan.best{border-color:var(--o2);background:var(--o-soft)}
+.plan.cur{border-style:dashed}
+.plan b{font-weight:600}.plan small{color:var(--muted);font-size:.78rem}
+.plan .net{font-weight:600;text-align:end}
+.toast{position:absolute;inset-inline:16px;bottom:calc(84px + env(safe-area-inset-bottom,0px));background:#1E1E24;color:#fff;border-radius:14px;padding:12px 14px;z-index:60;display:flex;align-items:center;gap:10px;font-size:.88rem;animation:up .22s var(--ease) both}
+.toast button{margin-inline-start:auto;background:none;border:0;color:#FFB48F;font-weight:600;cursor:pointer;min-height:36px}
+/* consent popup */
+.consent{display:grid;gap:12px}
+.consent .hero-ico{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(150deg,var(--burg1),var(--o1));color:#fff;justify-self:center;position:relative}
+.consent .hero-ico .ico{width:30px;height:30px}
+.consent .hero-ico::after{content:"";position:absolute;inset:-6px;border-radius:24px;border:2px solid rgb(240 78 26 / .35);animation:radar 2.2s var(--ease) infinite}
+.consent h3{text-align:center;font-size:1.15rem}
+.consent p{margin:0;text-align:center;color:var(--ink-2);font-size:.9rem}
+.choice{display:flex;gap:12px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:14px;cursor:pointer;transition:border-color .2s var(--ease),background-color .2s var(--ease)}
+.choice:has(input:checked){border-color:var(--o2);background:var(--o-soft)}
+.choice input{width:22px;height:22px;accent-color:var(--o2);flex:none;margin-top:2px}
+.choice span{display:grid;gap:2px}.choice small{color:var(--muted);font-size:.8rem}
+.steps{display:flex;justify-content:center;gap:6px}.steps i{width:22px;height:4px;border-radius:2px;background:var(--line)}.steps i.on{background:var(--o2)}
+.summary{display:grid;gap:6px;background:var(--ground);border-radius:14px;padding:12px;font-size:.88rem}
+.summary div{display:flex;justify-content:space-between;gap:10px}
+/* map */
+.map{position:relative;height:280px;border-radius:16px;overflow:hidden;background:#EEF0E6;touch-action:pan-y}
+.map svg{position:absolute;inset:0;width:100%;height:100%}
+.me{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#1D4ED8;border:3px solid #fff;box-shadow:0 2px 6px rgb(0 0 0 / .3);z-index:3}
+.me::after{content:"";position:absolute;inset:-10px;border-radius:50%;border:2px solid rgb(29 78 216 / .5);animation:radar 2s var(--ease) infinite}
+.acc{position:absolute;left:50%;top:50%;border-radius:50%;background:rgb(29 78 216 / .12);border:1px solid rgb(29 78 216 / .35);transform:translate(-50%,-50%);z-index:1}
+.mpin{position:absolute;z-index:2;transform:translate(-50%,-100%);display:grid;justify-items:center;background:none;border:0;padding:0;cursor:pointer;min-width:44px;min-height:44px}
+.mpin b{display:grid;place-items:center;width:32px;height:32px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);color:#fff;font-size:.8rem;box-shadow:0 3px 8px rgb(0 0 0 / .25);border:2px solid #fff;transition:transform .2s var(--ease)}
+.mpin b span{transform:rotate(45deg)}
+.mpin small{margin-top:2px;background:#fff;border-radius:8px;padding:1px 6px;font-size:.66rem;font-weight:600;color:var(--ink);box-shadow:0 1px 3px rgb(0 0 0 / .15);white-space:nowrap}
+.mpin:hover b,.mpin[aria-pressed="true"] b{transform:rotate(-45deg) scale(1.15)}
+.map-tag{position:absolute;inset-inline-start:10px;bottom:10px;z-index:4;background:rgb(255 255 255 / .92);border-radius:10px;padding:5px 9px;font-size:.72rem;color:var(--ink-2);box-shadow:0 1px 4px rgb(0 0 0 / .12)}
+.map-scale{position:absolute;inset-inline-end:10px;bottom:10px;z-index:4;font-size:.66rem;color:var(--ink-2);display:grid;justify-items:end;gap:2px}
+.map-scale i{display:block;width:55px;height:4px;border:2px solid var(--ink-2);border-top:0}
+/* map v2: filters, controls, user balloon with the Etihad Everywhere mark, shop markers, route, callout */
+.map2{position:relative;height:340px;border-radius:18px;overflow:hidden;background:#EEF0E6;box-shadow:inset 0 0 0 1px rgb(0 0 0 / .04)}
+.map2 svg.base{position:absolute;inset:-6%;width:112%;height:112%;transition:transform .35s var(--ease)}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips button{flex:none;border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 14px;min-height:38px;font-size:.82rem;cursor:pointer;transition:background-color .2s var(--ease),border-color .2s var(--ease),color .2s var(--ease)}
+.chips button[aria-pressed="true"]{background:var(--wine);border-color:var(--wine);color:#fff}
+.ctrl{position:absolute;inset-inline-end:10px;top:10px;z-index:6;display:grid;gap:6px}
+.ctrl button{width:40px;height:40px;border-radius:12px;border:0;background:#fff;box-shadow:0 2px 8px rgb(0 0 0 / .15);display:grid;place-items:center;cursor:pointer;color:var(--ink);font-size:1.2rem;font-weight:600}
+.ctrl button:hover{color:var(--o2)}
+.ctrl .ico{width:20px;height:20px}
+.count{position:absolute;inset-inline-start:10px;top:10px;z-index:6;background:rgb(255 255 255 / .94);border-radius:12px;padding:6px 10px;font-size:.76rem;font-weight:600;box-shadow:0 1px 6px rgb(0 0 0 / .12);display:flex;gap:6px;align-items:center}
+.count i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;animation:blink 1.6s var(--ease) infinite}
+@keyframes blink{50%{opacity:.35}}
+.you{position:absolute;left:50%;top:56%;z-index:5;transform:translate(-50%,-100%);display:grid;justify-items:center;pointer-events:none}
+.you .r{position:absolute;left:50%;bottom:-6px;width:44px;height:18px;margin-left:-22px;border-radius:50%;border:2px solid rgb(138 16 48 / .45);animation:ground 2.2s var(--ease) infinite}
+.you .r.r2{animation-delay:1.1s}
+@keyframes ground{0%{transform:scale(.4);opacity:1}100%{transform:scale(2.4);opacity:0}}
+.you svg{width:52px;height:64px;filter:drop-shadow(0 6px 8px rgb(94 10 34 / .35));animation:bob 2.6s var(--ease) infinite}
+@keyframes bob{50%{transform:translateY(-4px)}}
+.you b{margin-top:2px;background:var(--wine);color:#fff;border-radius:999px;padding:1px 9px;font-size:.68rem;font-weight:600;box-shadow:0 2px 6px rgb(0 0 0 / .2)}
+.accring{position:absolute;left:50%;top:56%;z-index:1;border-radius:50%;background:rgb(138 16 48 / .08);border:1.5px dashed rgb(138 16 48 / .35);transform:translate(-50%,-50%)}
+.route{position:absolute;inset:0;z-index:2;pointer-events:none;width:100%;height:100%}
+.route path{fill:none;stroke:var(--wine);stroke-width:.9;stroke-dasharray:2 1.6;stroke-linecap:round;animation:dash 1.2s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-7.2}}
+.shop{position:absolute;z-index:4;transform:translate(-50%,-100%);display:grid;justify-items:center;background:none;border:0;padding:0;cursor:pointer;min-width:44px;min-height:44px;transition:transform .2s var(--ease)}
+.shop .bd{display:flex;align-items:center;gap:6px;background:#fff;border-radius:14px;padding:4px 9px 4px 4px;box-shadow:0 4px 12px rgb(0 0 0 / .16);border:2px solid #fff;white-space:nowrap;transition:border-color .2s var(--ease),box-shadow .2s var(--ease)}
+.shop .lg{width:26px;height:26px;border-radius:9px;display:grid;place-items:center;color:#fff}
+.shop .lg .ico{width:16px;height:16px}
+.shop .nm{display:grid;line-height:1.1;text-align:start}
+.shop .nm b{font-size:.7rem;font-weight:600;color:var(--ink);max-width:84px;overflow:hidden;text-overflow:ellipsis}
+.shop .nm small{font-size:.64rem;font-weight:600}
+.shop .tip{width:10px;height:10px;background:#fff;transform:rotate(45deg);margin-top:-6px;box-shadow:2px 2px 4px rgb(0 0 0 / .08)}
+.shop:hover{transform:translate(-50%,-100%) translateY(-3px);z-index:7}
+.shop[aria-pressed="true"]{z-index:8}
+.shop[aria-pressed="true"] .bd{border-color:var(--o2);box-shadow:0 8px 20px rgb(240 78 26 / .35)}
+.shop.dim{opacity:.35}
+.callout{background:#fff;border:1.5px solid var(--o2);border-radius:16px;padding:12px;box-shadow:0 8px 22px rgb(240 78 26 / .14);display:grid;gap:8px;animation:up .25s var(--ease) both}
+.callout .row b{font-size:.98rem}
+.callout .meta{display:flex;gap:8px;flex-wrap:wrap;font-size:.78rem;color:var(--muted)}
+.callout .meta span{display:inline-flex;align-items:center;gap:4px}
+.callout .meta .ico{width:14px;height:14px}
+.callout .x{margin-inline-start:auto;width:36px;height:36px;border:0;border-radius:50%;background:var(--ground);cursor:pointer;font-size:1.1rem}
+.maptag2{position:absolute;inset-inline-start:10px;bottom:10px;z-index:5;background:rgb(255 255 255 / .94);border-radius:10px;padding:4px 9px;font-size:.7rem;color:var(--ink-2);box-shadow:0 1px 4px rgb(0 0 0 / .12)}
+.locating{display:grid;justify-items:center;gap:10px;padding:26px 10px;text-align:center;color:var(--ink-2)}
+.spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--o2);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+
+<div class="stage">
+  <div>
+    <p class="proto">Prototype · Etihad Everywhere · Bank al Etihad Digital Academy (Cohort 3, Group 3) · synthetic data, not the bank's app</p>
+    <div class="phone" id="phone">
+      <header class="topbar">
+        <button type="button" class="avatar" aria-label="Profile"><span><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px"><circle cx="12" cy="8" r="4" fill="#fff" stroke="none"/><path d="M4 21a8 8 0 0 1 16 0" fill="#fff" stroke="none"/></svg></span></button>
+        <button type="button" class="plan-chip" id="plan-chip" aria-label="Your plan"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" style="width:20px;height:20px"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg><span id="plan-name">Standard</span></button>
+        <button type="button" class="icon-btn" id="bell" aria-label="Notifications, 1 new"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg><span class="dot" id="bell-dot"></span></button>
+        <button type="button" class="icon-btn" aria-label="Search"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+      </header>
+      <main class="scroll" id="hub" aria-label="Hub"></main>
+      <nav class="tabbar" aria-label="Main">
+        <button type="button" data-tab="pay"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14l-3-3"/><path d="M20 16H6l3 3"/></svg>Payment</button>
+        <button type="button" data-tab="home"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5c1.6 0 2.4 1.6 2.2 3 1.2-.8 3-.5 3.6.9.6 1.4-.4 2.9-1.7 3.3 1.3.6 1.9 2.3 1 3.5-.9 1.3-2.6 1.3-3.6.4.2 1.4-.8 2.9-2.4 2.9s-2.6-1.5-2.4-2.9c-1 .9-2.7.9-3.6-.4-.9-1.2-.3-2.9 1-3.5-1.3-.4-2.3-1.9-1.7-3.3.6-1.4 2.4-1.7 3.6-.9-.2-1.4.6-3 2.2-3z"/></svg>Home</button>
+        <button type="button" data-tab="hub" aria-current="page"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="7" r="3.5"/><path d="M17 3.5 20.5 10h-7z"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="3.5"/></svg>Hub</button>
+      </nav>
+      <section class="screen" id="ee" role="dialog" aria-modal="true" aria-labelledby="ee-title" hidden></section>
+      <div id="overlay"></div>
+      <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+var $=function(id){return document.getElementById(id)};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function jod(n,d){return new Intl.NumberFormat('en-US',{minimumFractionDigits:d==null?2:d,maximumFractionDigits:d==null?2:d}).format(n)+' JOD'}
+
+/* ---------- icons (Lucide-style, 24×24) ---------- */
+var I={
+ bills:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+ loans:'<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
+ goals:'<rect x="3" y="5" width="18" height="13" rx="2"/><circle cx="14" cy="11.5" r="3"/><path d="M6 18v2M18 18v2M7 9v5"/>',
+ cards:'<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/>',
+ safety:'<circle cx="17" cy="15" r="3"/><path d="m14.8 12.8-8-8M9 7 6.5 9.5M11 9l-2 2"/>',
+ cheques:'<rect x="3" y="6" width="15" height="11" rx="1.5"/><rect x="6" y="9" width="15" height="11" rx="1.5"/><path d="M9 14h9"/>',
+ salary:'<path d="m5 6 7 6-7 6zM12 6l7 6-7 6z"/>',
+ flexi:'<path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>',
+ member:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1"/><circle cx="12" cy="11" r="2.5"/><path d="M8.5 17a3.5 3.5 0 0 1 7 0"/>',
+ subs:'<rect x="3" y="5" width="16" height="12" rx="2"/><path d="M3 9h16"/><path d="M21 16a4 4 0 1 1-1.2-2.8M21 12.5v2.7h-2.7"/>',
+ stocks:'<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+ wealth:'<circle cx="10" cy="7" r="2.5"/><circle cx="15.5" cy="10" r="2.5"/><path d="M3 15h4l3 2h5a2 2 0 0 0 0-4h-3M3 20h12l6-4"/>',
+ deposits:'<path d="M12 4v15M5 12l7 7 7-7"/>',
+ gold:'<path d="M5 19h14l-2-6H7z"/><path d="M8 13l1-3h6l1 3"/><path d="M12 3v3M7.5 5l1.2 2M16.5 5l-1.2 2"/>',
+ metals:'<path d="M4 20h7l-1.5-4h-4zM13 20h7l-1.5-4h-4zM8.5 16h7L14 12h-4z"/><path d="M12 4v4M7 6l1.5 2M17 6l-1.5 2M4.5 9.5 6.5 10M19.5 9.5l-2 .5"/>',
+ gift:'<rect x="3" y="6" width="18" height="12" rx="2"/><path d="m12 9 1 2h2l-1.6 1.3.6 2.2-2-1.3-2 1.3.6-2.2L9 11h2z"/>',
+ carbon:'<path d="M7 18a4 4 0 0 1-.6-8A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/><path d="M10 14.5a1.5 1.5 0 1 1 0-3M14 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/>',
+ rewards:'<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8c-2-4-6-4-6-1.5S9 8 12 8c3 0 6-.5 6-1.5S14 4 12 8z"/>',
+ found:'<path d="M12 21c-4-2-6-5-6-8.5 0-2 1-3.5 2.5-4.5 0 2 1 3 2 3.5C10 8 11 5 14 3c0 3 4 5 4 9.5S15 19 12 21z"/>',
+ travel:'<path d="M3 13l18-7-4 14-5-5-4 3v-5z"/>',
+ car:'<path d="M5 16h14v-4l-2-5H7l-2 5z"/><circle cx="8" cy="16.5" r="1.5"/><circle cx="16" cy="16.5" r="1.5"/><path d="M5 12h14"/>',
+ home:'<path d="M4 11 12 4l8 7v9H4z"/><path d="M10 20v-5h4v5"/>',
+ ribbon:'<path d="M12 3a3.5 3.5 0 0 1 3.5 3.5c0 3-6.5 9-8 14M12 3a3.5 3.5 0 0 0-3.5 3.5c0 3 6.5 9 8 14"/>',
+ back:'<path d="M15 5l-7 7 7 7"/>',
+ bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
+ pin:'<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
+ shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/>',
+ vault:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="12" cy="12" r="4"/><path d="M12 8v1M12 15v1M8 12h1M15 12h1"/>',
+ spark:'<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>'
+};
+function ico(k,st){return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"'+(st?' style="'+st+'"':'')+'>'+(I[k]||'')+'</svg>'}
+var STAR='<svg class="star" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 3 7 7 .7-5.3 4.7 1.6 7.1L12 17.8 5.7 21.5l1.6-7.1L2 9.7 9 9z"/></svg>';
+
+/* ---------- hub (mirrors the app's Hub tab) ---------- */
+var SECTIONS=[
+ ['Products','t-prod',[['bills','Bills'],['loans','Loans'],['goals','Savings Goals'],['cards','Cards'],['safety','Safety Box'],['cheques','Cheques'],['salary','Salary in Advance'],['flexi','FlexiPay'],['member','Memberships',1],['subs','Subscription Manager',1]]],
+ ['Investment','t-inv',[['stocks','Stocks'],['wealth','Manage Wealth',1],['deposits','Deposits'],['gold','Physical Gold',1],['metals','Precious Metals',1]]],
+ ['Lifestyle','t-life',[['ee','Etihad Everywhere',1],['gift','Gift Cards'],['carbon','Carbon Calculator',1],['rewards','Rewards'],['found','BaE foundation']]],
+ ['Insurance Products','t-ins',[['travel','Travel Insurance'],['car','Car Insurance'],['home','Home Insurance',1],['ribbon','Cancer Care Insurance',1]]]
+];
+function eeTile(){
+  return '<span class="t t-ee"><span class="new">NEW</span>'+STAR+'<span class="pulse"></span><span class="pulse p2"></span>'+
+    '<svg class="pin" viewBox="0 0 30 36" aria-hidden="true"><path d="M15 1C7.3 1 1.5 6.9 1.5 14.3 1.5 24 15 35 15 35s13.5-11 13.5-20.7C28.5 6.9 22.7 1 15 1z" fill="#FBEFE3"/><circle cx="15" cy="14.3" r="7" fill="#8A1030"/><path d="M15 9.5c.9 1.6 2.4 1.6 3.4 1.2-.3 1.7.6 2.9 1.6 3.6-1 .7-1.9 1.9-1.6 3.6-1-.4-2.5-.4-3.4 1.2-.9-1.6-2.4-1.6-3.4-1.2.3-1.7-.6-2.9-1.6-3.6 1-.7 1.9-1.9 1.6-3.6 1 .4 2.5.4 3.4-1.2z" fill="#FF7A3D"/></svg><span class="glint"></span></span>';
+}
+function renderHub(){
+  $('hub').innerHTML=SECTIONS.map(function(s){
+    return '<section class="sect" aria-labelledby="h-'+s[0].replace(/\s/g,'')+'"><h2 id="h-'+s[0].replace(/\s/g,'')+'">'+s[0]+'</h2><ul class="tiles">'+s[2].map(function(t){
+      var ee=t[0]==='ee';
+      return '<li><button type="button" class="tile'+(ee?' ee':'')+'" data-tile="'+t[0]+'"'+(ee?' aria-label="Etihad Everywhere, new: your savings, nearby offers and plan advice"':'')+'>'+
+        (ee?eeTile():'<span class="t '+s[1]+'">'+(t[2]?'<span class="new">NEW</span>'+STAR:'')+ico(t[0])+'</span>')+
+        '<span class="l">'+t[1]+'</span></button></li>'}).join('')+'</ul></section>'}).join('');
+}
+
+/* ---------- the customer's numbers (same model as the project page) ---------- */
+var PLANS={Standard:{fee:0,pts:0,atm:0,careem:false,stock:0,perks:'Free'},Essential:{fee:3.99,pts:100,atm:2,careem:true,stock:.10,perks:'+100 pts · Careem Plus · 2 free ATM · 10% stock fees'},Plus:{fee:7.99,pts:200,atm:3,careem:true,stock:.20,perks:'+200 pts · Careem Plus · 3 free ATM · 20% stock fees'},Pro:{fee:17.99,pts:500,atm:5,careem:true,stock:.30,perks:'+500 pts · Careem Plus · 5 free ATM · 30% stock fees'}};
+var RANKS={4:{c:.5,d:0},3:{c:1,d:.5},2:{c:2,d:1.5},1:{c:3,d:2}};
+var A={atm_fee:.5,point_value:.01,avg_discount_pct:10,min_gain:1,cb_rate:5};
+var ME={name:'Sara',rank:3,plan:'Standard',credit:620,debit:410,discSpend:140,cb5Spend:60,atm:3,careem:4,stock:0,vault:18.40,claimed:false};
+function rankCb(rank,credit,debit){var r=RANKS[rank];return credit*r.c/100+debit*r.d/100}
+function model(){
+  var cb=rankCb(ME.rank,ME.credit,ME.debit),next=ME.rank>1?rankCb(ME.rank-1,ME.credit,ME.debit)-cb:0;
+  var missed=ME.discSpend*A.avg_discount_pct/100+ME.cb5Spend*(A.cb_rate/100);
+  var rows=Object.keys(PLANS).map(function(k){var p=PLANS[k],v=Math.min(ME.atm,p.atm)*A.atm_fee+(p.careem?ME.careem:0)+ME.stock*p.stock+p.pts*A.point_value;return {plan:k,fee:p.fee,value:v,net:v-p.fee}});
+  var best=rows.reduce(function(a,b){return b.net>a.net?b:a},rows[0]),cur=rows.filter(function(r){return r.plan===ME.plan})[0];
+  var gain=best.net-cur.net,hold=best.plan!==ME.plan&&gain<A.min_gain&&cur.net>=0;
+  return {cb:cb,next:next,missed:missed,rows:rows,best:hold?cur:best,cur:cur,gain:hold?0:gain};
+}
+
+/* ---------- consent and alerts (kept on this device only) ---------- */
+var CONSENT={location:true,analysis:true,marketing:true};
+try{var saved=JSON.parse(localStorage.getItem('ee_consent')||'null');if(saved)CONSENT=Object.assign(CONSENT,saved)}catch(e){}
+function saveConsent(){try{localStorage.setItem('ee_consent',JSON.stringify(CONSENT))}catch(e){}}
+var OFFERS=[
+ {id:'fraij',name:'Fraij',type:'discount',rate:40,dist:120,color:'#B0283F',cat:'Card discount'},
+ {id:'ikura',name:'Ikura Jordan',type:'discount',rate:15,dist:340,color:'#0F766E',cat:'Card discount'},
+ {id:'souq',name:'Souq Fann',type:'cashback',rate:5,dist:450,color:'#C2410C',cat:'Partner cashback'},
+ {id:'infinix',name:'Infinix Mecca St.',type:'cashback',rate:5,dist:900,color:'#1D4ED8',cat:'Partner cashback'},
+ {id:'gerard',name:'Gerard',type:'discount',rate:10,dist:1200,color:'#6D28D9',cat:'Card discount'},
+ {id:'freddy',name:'Freddy for Music',type:'cashback',rate:5,dist:1800,color:'#334155',cat:'Partner cashback'}];
+var EASY=[['E.STORE','3–36'],['Smart Buy','3–24'],['Midas','3–36'],['Hypermax','9–24'],['Amman Institute of Performing Arts','3–12']];
+var INBOX=[{id:'n1',title:'Fraij is 120 m away',body:'40% off when you pay with your Bank al Etihad card, and your Rank 3 cashback still applies.',why:'You turned on location, and you are next to a partner merchant. You get at most 2 alerts a day, never between 22:00 and 08:00.',offer:'fraij'},
+ {id:'n2',title:'Your October savings are ready',body:'See what you got back and what you missed this month.',why:'Monthly summary from the savings advisor, based on your card spend.',offer:null}];
+var EE={tab:'you',open:null,amount:100,openOffer:null,last:null};
+
+/* ---------- consent → location → map ---------- */
+/* confirmed: the user approved and then confirmed the choices (kept on this device) */
+var CONFIRMED=null;try{CONFIRMED=JSON.parse(localStorage.getItem('ee_confirmed')||'null')}catch(e){}
+var LOC={status:'idle',lat:null,lng:null,acc:null,sample:false,err:''};
+var SAMPLE_LOC={lat:31.9706,lng:35.8962,acc:60,label:'Sample location · Shmeisani, Amman'};
+var BEARING={fraij:35,ikura:140,souq:215,infinix:300,gerard:80,freddy:250};
+var DRAFT=null;
+function consentStep1(){
+  DRAFT=DRAFT||{location:true,analysis:true,marketing:true};
+  showSheet('<div class="consent"><div class="steps" aria-hidden="true"><i class="on"></i><i></i></div><span class="hero-ico">'+ico('pin')+'</span>'+
+   '<h3 id="cs-t">Share your information with Etihad Everywhere?</h3><p>Choose what you share. You can change it any time in Privacy.</p>'+
+   '<form class="consent" id="cs-form">'+[['location','Your location while the app is open','Shows your position on the map and offers near you. Your route is never stored.'],['analysis','Your card spend','Your monthly savings summary and plan advice.'],['marketing','Offers and alerts','At most 2 a day, never between 22:00 and 08:00.']].map(function(x){return '<label class="choice" for="cs-'+x[0]+'"><input type="checkbox" id="cs-'+x[0]+'" data-draft="'+x[0]+'"'+(DRAFT[x[0]]?' checked':'')+'><span><b>'+x[1]+'</b><small>'+x[2]+'</small></span></label>'}).join('')+
+   '<button type="submit" class="btn primary full" data-act="cs-next">Allow and continue</button><button type="button" class="btn full" data-act="cs-later">Not now</button></form></div>','Share your information');
+}
+function consentStep2(){
+  var names={location:'Location while the app is open',analysis:'Card spend analysis',marketing:'Offers and alerts'};
+  showSheet('<div class="consent"><div class="steps" aria-hidden="true"><i class="on"></i><i class="on"></i></div><h3>Confirm your choices</h3>'+
+   '<div class="summary">'+Object.keys(names).map(function(k){return '<div><span>'+names[k]+'</span><b style="color:'+(DRAFT[k]?'var(--ok)':'var(--muted)')+'">'+(DRAFT[k]?'Allowed':'Not shared')+'</b></div>'}).join('')+'</div>'+
+   '<p>No name, phone or account number is sent to the AI. Your location stays on this device and is not sent to any map provider.</p>'+
+   '<button type="button" class="btn primary full" data-act="cs-confirm">Confirm</button><button type="button" class="btn full" data-act="cs-back">Back</button></div>','Confirm your choices');
+}
+function locate(){
+  if(!CONSENT.location){LOC.status='idle';return}
+  LOC={status:'locating',sample:false};renderEE();
+  if(!('geolocation' in navigator)){LOC={status:'denied',err:'This device does not share location.'};renderEE();return}
+  try{navigator.geolocation.getCurrentPosition(function(p){LOC={status:'ok',lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy),sample:false};renderEE()},
+    function(err){LOC={status:'denied',err:err&&err.code===1?'Location permission was refused by your device or this viewer.':'Your location could not be found right now.'};renderEE()},{enableHighAccuracy:true,timeout:10000,maximumAge:60000})}
+  catch(e){LOC={status:'denied',err:'Location is blocked in this viewer.'};renderEE()}
+}
+/* keep keyboard focus on the control that was used after a re-render */
+function focusAct(act,attr,val){var sel='[data-act="'+act+'"]'+(attr?'['+attr+'="'+val+'"]':''),el=document.querySelector(sel);if(el)el.focus({preventScroll:true})}
+function useSample(){LOC={status:'ok',lat:SAMPLE_LOC.lat,lng:SAMPLE_LOC.lng,acc:SAMPLE_LOC.acc,sample:true};renderEE()}
+function mapCard(){
+  if(!CONSENT.location)return '';
+  if(LOC.status==='locating')return '<div class="card"><div class="locating" role="status"><span class="spin" aria-hidden="true"></span><b>Finding your location…</b><span class="sub">Allow location if your device asks.</span></div></div>';
+  if(LOC.status==='denied'||LOC.status==='idle')return '<div class="card"><div class="empty">'+ico('pin')+'<b>'+(LOC.status==='idle'?'Show where you are':'We could not get your location')+'</b><span>'+esc(LOC.err||'See partner offers around you on the map.')+'</span><div class="row"><button type="button" class="btn primary" data-act="locate">'+(LOC.status==='idle'?'Show my location':'Try again')+'</button>'+(LOC.status==='denied'?'<button type="button" class="btn" data-act="sample-loc">Use a sample location</button>':'')+'</div></div></div>';
+  return mapCard2();
+}
+/* map v2 */
+EE.zoom=1;EE.filter='all';EE.sel=null;EE.walk=false;
+I.store='<path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/><path d="M5 13v8h14v-8"/><path d="M10 21v-5h4v5"/>';
+I.walk='<circle cx="13" cy="4" r="2"/><path d="m9 20 3-6 3 3v4M7 12l3-4 4 1 3 3"/>';
+I.crosshair='<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="2"/>';
+I.tag='<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>';
+function pinPos(o){var pct=(23+Math.min(o.dist,1800)/1800*22)*EE.zoom,a=(BEARING[o.id]||0)*Math.PI/180;return {x:50+pct*Math.sin(a),y:56-pct*1.15*Math.cos(a)}}
+function inView(p){return p.x>6&&p.x<94&&p.y>12&&p.y<96}
+function youBalloon(){
+  return '<span class="you" aria-hidden="true"><span class="r"></span><span class="r r2"></span>'+
+    '<svg viewBox="0 0 52 64"><defs><linearGradient id="ygr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8A1030"/><stop offset=".6" stop-color="#B0283F"/><stop offset="1" stop-color="#FF7A3D"/></linearGradient></defs>'+
+    '<path d="M26 2C13.3 2 3.5 11.8 3.5 24.2 3.5 40.5 26 62 26 62s22.5-21.5 22.5-37.8C48.5 11.8 38.7 2 26 2z" fill="url(#ygr)" stroke="#fff" stroke-width="2.5"/>'+
+    '<circle cx="26" cy="24" r="14" fill="#FBEFE3"/>'+
+    /* Etihad Everywhere mark: the pin + rosette from the project logo */
+    '<path d="M26 13.5C21.4 13.5 17.9 17 17.9 21.5c0 6 8.1 13 8.1 13s8.1-7 8.1-13c0-4.5-3.5-8-8.1-8z" fill="#8A1030"/>'+
+    '<path d="M26 16.6c.6 1.1 1.7 1.1 2.4.8-.2 1.2.4 2 1.1 2.5-.7.5-1.3 1.3-1.1 2.5-.7-.3-1.8-.3-2.4.8-.6-1.1-1.7-1.1-2.4-.8.2-1.2-.4-2-1.1-2.5.7-.5 1.3-1.3 1.1-2.5.7.3 1.8.3 2.4-.8z" fill="#FF7A3D"/>'+
+    '</svg><b>You</b></span>';
+}
+function mapCard2(){
+  var shown=OFFERS.filter(function(o){return EE.filter==='all'||o.type===EE.filter}),inv=0;
+  var sel=EE.sel&&OFFERS.filter(function(o){return o.id===EE.sel})[0];
+  var shops=shown.map(function(o){var p=pinPos(o);if(!inView(p))return '';inv++;
+    return '<button type="button" class="shop'+(sel&&sel.id!==o.id?' dim':'')+'" style="left:'+p.x.toFixed(1)+'%;top:'+p.y.toFixed(1)+'%" data-act="shop" data-id="'+o.id+'" aria-pressed="'+(EE.sel===o.id)+'" aria-label="'+esc(o.name)+', '+(o.type==='discount'?o.rate+'% off':o.rate+'% cashback')+', '+o.dist+' metres away">'+
+      '<span class="bd"><span class="lg" style="background:'+o.color+'">'+ico('store')+'</span><span class="nm"><b>'+esc(o.name)+'</b><small style="color:'+o.color+'">'+(o.type==='discount'?o.rate+'% off':o.rate+'% back')+'</small></span></span><span class="tip" aria-hidden="true"></span></button>'}).join('');
+  var route='';
+  if(sel&&EE.walk){var p=pinPos(sel);route='<svg class="route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M50 56 Q '+((50+p.x)/2+6).toFixed(1)+' '+((56+p.y)/2).toFixed(1)+' '+p.x.toFixed(1)+' '+(p.y+1).toFixed(1)+'"/></svg>'}
+  var ring=Math.max(40,Math.min(220,(LOC.acc||60)*0.5*EE.zoom));
+  return '<div class="card" style="padding:12px;gap:10px">'+
+    '<div class="row sb"><h3>Shops around you</h3><span class="pill p-w">'+(LOC.sample?'Sample location':'Live')+'</span></div>'+
+    '<div class="chips" role="group" aria-label="Filter shops">'+[['all','All shops'],['discount','Card discounts'],['cashback','Cashback']].map(function(f){return '<button type="button" data-act="filter" data-f="'+f[0]+'" aria-pressed="'+(EE.filter===f[0])+'">'+f[1]+'</button>'}).join('')+'</div>'+
+    '<div class="map2" role="group" aria-label="Map of shops around you">'+mapSvg().replace('<svg ','<svg class="base" style="transform:scale('+(0.9+EE.zoom*0.1).toFixed(2)+')" ')+
+    '<span class="accring" style="width:'+ring+'px;height:'+ring+'px" aria-hidden="true"></span>'+route+shops+youBalloon()+
+    '<span class="count"><i aria-hidden="true"></i>'+inv+' shops in view</span>'+
+    '<span class="ctrl"><button type="button" data-act="zoom" data-z="in" aria-label="Zoom in">+</button><button type="button" data-act="zoom" data-z="out" aria-label="Zoom out">−</button><button type="button" data-act="recenter" aria-label="Centre on me">'+ico('crosshair')+'</button></span>'+
+    '<span class="maptag2">'+(LOC.sample?esc(SAMPLE_LOC.label):'±'+LOC.acc+' m · on this device only')+'</span></div>'+
+    (sel?'<div class="callout" role="region" aria-label="'+esc(sel.name)+'"><div class="row"><span class="lg" style="width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:#fff;background:'+sel.color+'">'+ico('store')+'</span><span style="display:grid"><b>'+esc(sel.name)+'</b><span class="pill p-o" style="justify-self:start">'+(sel.type==='discount'?sel.rate+'% off with your card':sel.rate+'% cashback')+'</span></span><button type="button" class="x" data-act="shop-close" aria-label="Close '+esc(sel.name)+'">×</button></div>'+
+      '<div class="meta"><span>'+ico('pin')+(sel.dist<1000?sel.dist+' m':(sel.dist/1000).toFixed(1)+' km')+'</span><span>'+ico('walk')+Math.max(1,Math.round(sel.dist/80))+' min walk</span><span>'+ico('tag')+'+ Rank '+ME.rank+' cashback</span></div>'+
+      '<div class="row"><button type="button" class="btn primary" data-act="shop-offer" data-id="'+sel.id+'">See what you gain</button><button type="button" class="btn" data-act="walk" aria-pressed="'+EE.walk+'">'+(EE.walk?'Hide route':'Show route')+'</button></div></div>':'')+
+    '</div>';
+}
+/* a local street-style map drawn on the device (no map tiles, nothing leaves the phone) */
+function mapSvg(){
+  var seed=Math.round((LOC.lat||31.97)*1000)+Math.round((LOC.lng||35.9)*1000),R=function(){seed=(seed*9301+49297)%233280;return seed/233280};
+  var s='<svg viewBox="0 0 340 280" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="340" height="280" fill="#EEF0E6"/>';
+  for(var i=0;i<14;i++){s+='<rect x="'+(R()*320).toFixed(0)+'" y="'+(R()*260).toFixed(0)+'" width="'+(30+R()*50).toFixed(0)+'" height="'+(20+R()*40).toFixed(0)+'" rx="6" fill="#E2E4D8"/>'}
+  s+='<ellipse cx="'+(60+R()*220).toFixed(0)+'" cy="'+(40+R()*200).toFixed(0)+'" rx="38" ry="24" fill="#CFE6C1"/>';
+  for(var j=0;j<5;j++){var y=(j+.5)*56+R()*12-6;s+='<path d="M-10 '+y.toFixed(0)+' C 110 '+(y+R()*30-15).toFixed(0)+', 230 '+(y+R()*30-15).toFixed(0)+', 350 '+(y+R()*20-10).toFixed(0)+'" stroke="#FFFFFF" stroke-width="'+(j===2?9:5)+'" fill="none"/>'}
+  for(var k=0;k<6;k++){var x=(k+.5)*58+R()*14-7;s+='<path d="M'+x.toFixed(0)+' -10 L'+(x+R()*40-20).toFixed(0)+' 290" stroke="#FFFFFF" stroke-width="'+(k===3?9:5)+'"/>'}
+  s+='<path d="M-10 140 C 110 120, 230 165, 350 140" stroke="#F8D9A8" stroke-width="10" fill="none" opacity=".9"/></svg>';
+  return s;
+}
+
+/* ---------- Etihad Everywhere screen ---------- */
+function openEE(tab,from){EE.tab=tab||EE.tab;EE.last=from||document.activeElement;$('ee').hidden=false;renderEE();var t=$('ee-title');if(t)t.focus();
+  if(!CONFIRMED){DRAFT=null;consentStep1()}
+  else if(CONSENT.location&&LOC.status==='idle'&&EE.tab==='near')locate()}
+function closeEE(){$('ee').hidden=true;closeOverlay();if(EE.last&&EE.last.isConnected)EE.last.focus()}
+function renderEE(){
+  var m=model(),tabs=[['you','For you'],['near','Near me'],['alerts','Alerts'],['privacy','Privacy']];
+  $('ee').innerHTML='<div class="ee-head"><div class="ee-top"><button type="button" class="icon-btn" data-act="back" aria-label="Back to Hub">'+ico('back')+'</button>'+
+    '<span class="ee-brand" id="ee-title" tabindex="-1" translate="no">Etihad <span>Everywhere</span></span><button type="button" class="icon-btn" data-act="tab" data-tab="alerts" aria-label="Alerts">'+ico('bell')+'</button></div>'+
+    '<div class="ee-hello"><small>'+(function(h){return h<12?'Good morning,':h<18?'Good afternoon,':'Good evening,'})(new Date().getHours())+'</small><b>'+esc(ME.name)+' · Rank '+ME.rank+' · '+esc(ME.plan)+'</b></div>'+
+    '<div class="seg" role="tablist" aria-label="Etihad Everywhere">'+tabs.map(function(t){return '<button type="button" role="tab" id="tab-'+t[0]+'" aria-controls="ee-panel" aria-selected="'+(EE.tab===t[0])+'" tabindex="'+(EE.tab===t[0]?0:-1)+'" data-act="tab" data-tab="'+t[0]+'">'+t[1]+'</button>'}).join('')+'</div></div>'+
+    '<div class="panel" id="ee-panel" role="tabpanel" aria-labelledby="tab-'+EE.tab+'">'+({you:tabYou,near:tabNear,alerts:tabAlerts,privacy:tabPrivacy}[EE.tab])(m)+'</div>';
+  easyOut();
+}
+function tabYou(m){
+  if(!CONSENT.analysis)return '<div class="card empty">'+ico('shield')+'<b>Spend analysis is off</b><span>Turn it on to see your monthly savings and plan advice.</span><button type="button" class="btn primary" data-act="consent-on" data-k="analysis">Turn on spend analysis</button></div>';
+  var r=ME.rank;
+  return '<div class="card"><span class="sub">You got back in October</span><div class="big num">'+jod(m.cb)+'</div>'+
+    '<div class="stat"><div><small>You missed at partner stores</small><b class="num">'+jod(m.missed)+'</b></div><div><small>Extra if you reach Rank '+(r-1)+'</small><b class="num">+'+jod(m.next)+'</b></div></div>'+
+    '<button type="button" class="btn ghost" data-act="tab" data-tab="near">See where you can save '+ico('pin','width:18px;height:18px')+'</button></div>'+
+    '<div class="card"><div class="row sb"><h3>Cashback rank</h3><span class="pill p-w">Rank '+r+'</span></div><div class="ranks">'+[4,3,2,1].map(function(k){return '<div class="'+(k===r?'on':'')+'"><b>Rank '+k+'</b>'+RANKS[k].c+'% / '+RANKS[k].d+'%</div>'}).join('')+'</div>'+
+    '<span class="sub">Credit / debit cashback on every POS purchase in Jordan. Keep paying by card to move up.</span></div>'+
+    '<div class="card"><div class="row sb"><h3>Cashback vault</h3>'+ico('vault')+'</div>'+(ME.claimed?'<div class="row"><span class="pill p-ok">Moved to your account</span><span class="sub num">'+jod(18.40)+'</span></div>':'<div class="big num" style="font-size:1.5rem">'+jod(ME.vault)+'</div><button type="button" class="btn primary full" data-act="claim">Move to my account</button>')+'</div>'+
+    (m.best.plan!==ME.plan?'<div class="card reco"><div class="row sb"><h3>'+m.best.plan+' fits how you bank</h3><span class="pill p-o">Advice</span></div><span>It gives you <b class="num">'+jod(m.best.value)+'</b> in value for a <b class="num">'+jod(PLANS[m.best.plan].fee)+'</b> fee: <b class="num">+'+jod(m.gain)+'</b> a month for you.</span><span class="sub">Because you use other banks\' ATMs and pay for Careem Plus.</span><div class="row"><button type="button" class="btn primary" data-act="plans">Compare plans</button><button type="button" class="btn ghost" data-act="keep">Keep '+esc(ME.plan)+'</button></div></div>':
+    '<div class="card"><div class="row sb"><h3>Your plan fits you</h3><span class="pill p-ok">'+esc(ME.plan)+'</span></div><span class="sub">No other plan gives you at least 1 JOD more a month.</span><button type="button" class="btn" data-act="plans">Compare plans</button></div>');
+}
+function tabNear(){
+  var list=OFFERS.slice().sort(function(a,b){return a.dist-b.dist});
+  return mapCard()+(CONSENT.location?'':'<div class="card"><div class="row sb"><b>Location is off</b><button type="button" class="btn" data-act="consent-on" data-k="location">Turn on</button></div><span class="sub">You will not get alerts. Offers still apply when you pay by card.</span></div>')+
+  '<div class="card"><div class="row sb"><h3>Near you</h3><span class="pill p-o">'+list.length+' offers</span></div><ul class="list">'+list.map(function(o){var open=EE.openOffer===o.id;
+    return '<li><button type="button" class="offer" data-act="offer" data-id="'+o.id+'" aria-expanded="'+open+'"><span class="lg" style="background:'+o.color+'" aria-hidden="true">'+esc(o.name[0])+'</span><span><b>'+esc(o.name)+'</b><small>'+o.cat+' · '+(o.dist<1000?o.dist+' m':(o.dist/1000).toFixed(1)+' km')+'</small></span><span class="v">'+(o.type==='discount'?o.rate+'% off':o.rate+'% back')+'</span></button>'+(open?calc(o):'')+'</li>'}).join('')+'</ul></div>'+
+  '<div class="card"><h3>0% Easy Payment</h3><span class="sub">Instalments at authorised dealers, no interest.</span><ul class="list">'+EASY.map(function(e){return '<li class="row sb"><span>'+esc(e[0])+'</span><span class="pill p-o">'+e[1]+' months</span></li>'}).join('')+'</ul>'+
+  '<form class="calc" data-form="easy"><label class="field" for="easy-amt">Price (JOD)<input id="easy-amt" type="number" inputmode="decimal" min="1" value="650"></label><label class="field" for="easy-m">Months<input id="easy-m" type="number" inputmode="numeric" min="3" max="36" value="12"></label><div class="line total" id="easy-out"></div></form></div>';
+}
+function calc(o){
+  var amt=EE.amount,rank=RANKS[ME.rank].c,pay,disc=0,partner=0,rcb;
+  if(o.type==='discount'){disc=amt*o.rate/100;pay=amt-disc}else{pay=amt;partner=amt*o.rate/100}
+  rcb=pay*rank/100;
+  return '<form class="calc" data-form="pay" data-id="'+o.id+'"><label class="field" for="pay-amt">If you spend (JOD)<input id="pay-amt" type="number" inputmode="decimal" min="1" value="'+amt+'"></label>'+
+    (disc?'<div class="line"><span>Card discount '+o.rate+'%</span><span class="num">−'+jod(disc)+'</span></div><div class="line"><span>You pay</span><span class="num">'+jod(pay)+'</span></div>':'<div class="line"><span>Partner cashback '+o.rate+'%</span><span class="num">+'+jod(partner)+'</span></div>')+
+    '<div class="line"><span>Your Rank '+ME.rank+' cashback '+rank+'%</span><span class="num">+'+jod(rcb)+'</span></div><div class="line total"><span>You gain</span><span class="num">'+jod(disc+partner+rcb)+'</span></div></form>';
+}
+function tabAlerts(){
+  var items=INBOX.filter(function(n){return !n.dismissed});
+  if(!CONSENT.marketing&&!CONSENT.location)return '<div class="card empty">'+ico('bell')+'<b>Alerts are off</b><span>You turned off location and offers. Your monthly summary is still in For you.</span></div>';
+  return '<div class="card"><div class="row sb"><h3>Alerts</h3><span class="sub">Max 2 a day · quiet 22:00–08:00</span></div>'+(items.length?items.map(function(n){var o=n.offer&&OFFERS.filter(function(x){return x.id===n.offer})[0];
+    return '<article class="notif" aria-labelledby="nt-'+n.id+'"><span class="app"><i aria-hidden="true"></i>Etihad Everywhere · now</span><b id="nt-'+n.id+'">'+esc(n.title)+'</b><span>'+esc(n.body)+'</span>'+(n.showWhy?'<span class="why">'+esc(n.why)+'</span>':'')+
+    '<div class="row"><button type="button" class="btn primary" data-act="'+(o?'see-offer':'tab')+'" data-tab="you" data-id="'+(o?o.id:'')+'">'+(o?'Show offer':'Open summary')+'</button><button type="button" class="btn ghost" data-act="why" data-id="'+n.id+'" aria-expanded="'+!!n.showWhy+'">Why did I get this?</button><button type="button" class="btn ghost" data-act="dismiss" data-id="'+n.id+'" aria-label="Not interested in: '+esc(n.title)+'">Not interested</button></div></article>'}).join(''):'<div class="empty">'+ico('bell')+'<b>All caught up</b><span>New alerts appear here when you are near a partner.</span></div>')+'</div>';
+}
+function tabPrivacy(){
+  var t=[['location','Use my location','Alerts when you are near a partner. Your route is never stored.'],['analysis','Analyse my card spend','Monthly savings summary and plan advice.'],['marketing','Offers and alerts','At most 2 a day, never 22:00–08:00.']];
+  return '<div class="card"><h3>Your choices</h3>'+t.map(function(x){return '<label class="toggle" for="c-'+x[0]+'"><span><b>'+x[1]+'</b><small>'+x[2]+'</small></span><input class="switch" type="checkbox" role="switch" id="c-'+x[0]+'" data-consent="'+x[0]+'"'+(CONSENT[x[0]]?' checked':'')+'></label>'}).join('')+'</div>'+
+  '<div class="card"><h3>Your data</h3><span class="sub">AI writes the wording of alerts; the numbers come from the bank. No name, phone or account number is sent to the AI.</span><button type="button" class="btn" data-act="all-off">Turn everything off</button></div>';
+}
+
+/* ---------- overlays: plan sheet, confirm ---------- */
+function closeOverlay(){$('overlay').innerHTML=''}
+function showSheet(html,label){$('overlay').innerHTML='<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-label="'+label+'"><span class="grab" aria-hidden="true"></span>'+html+'</div></div>';var f=$('overlay').querySelector('button');if(f)f.focus()}
+function plansSheet(){
+  var m=model();
+  showSheet('<h3>Compare plans for you</h3><span class="sub">Value from your own October use, minus the monthly fee.</span>'+m.rows.map(function(r){var best=r.plan===m.best.plan,cur=r.plan===ME.plan;
+    return '<div class="plan'+(best?' best':'')+(cur?' cur':'')+'"><b>'+r.plan+(cur?' · current':'')+(best&&!cur?' · best for you':'')+'</b><span class="net num" style="color:'+(r.net<0?'var(--bad)':'var(--ok)')+'">'+(r.net<0?'−':'+')+jod(Math.abs(r.net))+'</span><small>'+PLANS[r.plan].perks+'</small><small class="num" style="text-align:end">'+jod(r.fee)+'/mo</small></div>'}).join('')+
+    (m.best.plan!==ME.plan?'<button type="button" class="btn primary full" data-act="subscribe" data-plan="'+m.best.plan+'">Switch to '+m.best.plan+' · '+jod(PLANS[m.best.plan].fee)+'/month</button>':'')+'<button type="button" class="btn full" data-act="close-sheet">Not now</button>','Compare plans');
+}
+function confirmSheet(title,body,okLabel,act,data){showSheet('<h3>'+title+'</h3><span>'+body+'</span><button type="button" class="btn primary full" data-act="'+act+'" '+(data||'')+'>'+okLabel+'</button><button type="button" class="btn full" data-act="close-sheet">Cancel</button>',title)}
+var toastT;
+function toast(msg,undo){var t=$('toast');t.innerHTML='<span>'+esc(msg)+'</span>'+(undo?'<button type="button" data-act="undo">Undo</button>':'');t.hidden=false;clearTimeout(toastT);toastT=setTimeout(function(){t.hidden=true;undoFn=null},5000);undoFn=undo||null}
+var undoFn=null;
+
+/* ---------- events ---------- */
+document.addEventListener('click',function(e){
+  var tile=e.target.closest('[data-tile]');
+  if(tile){if(tile.getAttribute('data-tile')==='ee')openEE('you',tile);else toast(tile.textContent.trim()+' is not part of this prototype.');return}
+  var tb=e.target.closest('[data-tab]:not([data-act])');if(tb){if(tb.getAttribute('data-tab')!=='hub')toast('Only the Hub tab is part of this prototype.');return}
+  if(e.target.closest('#bell')){openEE('alerts',e.target.closest('#bell'));$('bell-dot').hidden=true;return}
+  if(e.target.closest('#plan-chip')){openEE('you',e.target.closest('#plan-chip'));plansSheet();return}
+  var b=e.target.closest('[data-act]');if(!b)return;var a=b.getAttribute('data-act');
+  if(a==='scrim'&&e.target===b){closeOverlay();return}
+  if(a==='cs-next'){e.preventDefault();[].forEach.call(document.querySelectorAll('[data-draft]'),function(c){DRAFT[c.getAttribute('data-draft')]=c.checked});consentStep2();return}
+  if(a==='cs-back'){consentStep1();return}
+  if(a==='cs-later'){closeOverlay();CONSENT={location:false,analysis:false,marketing:false};saveConsent();renderEE();toast('Nothing is shared. You can turn things on in Privacy.');return}
+  if(a==='cs-confirm'){CONSENT=Object.assign({},DRAFT);saveConsent();CONFIRMED={at:new Date().toISOString(),choices:DRAFT};try{localStorage.setItem('ee_confirmed',JSON.stringify(CONFIRMED))}catch(_){}
+    closeOverlay();EE.tab=CONSENT.location?'near':'you';renderEE();toast('Your choices are saved.');if(CONSENT.location)locate();return}
+  if(a==='locate'){locate();return}
+  if(a==='sample-loc'){useSample();return}
+  if(a==='filter'){EE.filter=b.getAttribute('data-f');if(EE.sel&&EE.filter!=='all'){var so=OFFERS.filter(function(o){return o.id===EE.sel})[0];if(so&&so.type!==EE.filter){EE.sel=null;EE.walk=false}}renderEE();focusAct('filter','data-f',EE.filter);return}
+  if(a==='zoom'){EE.zoom=b.getAttribute('data-z')==='in'?Math.min(1.8,EE.zoom+0.35):Math.max(0.55,EE.zoom-0.35);renderEE();focusAct('zoom','data-z',b.getAttribute('data-z'));return}
+  if(a==='recenter'){EE.zoom=1;EE.sel=null;EE.walk=false;renderEE();focusAct('recenter');return}
+  if(a==='shop'){var sid=b.getAttribute('data-id');EE.sel=EE.sel===sid?null:sid;EE.walk=!!EE.sel;renderEE();var cb=document.querySelector('.callout .btn.primary');if(cb)cb.focus({preventScroll:true});return}
+  if(a==='shop-close'){var was=EE.sel;EE.sel=null;EE.walk=false;renderEE();focusAct('shop','data-id',was);return}
+  if(a==='walk'){EE.walk=!EE.walk;renderEE();focusAct('walk');return}
+  if(a==='shop-offer'){a='pin'}
+  if(a==='pin'){var pid=b.getAttribute('data-id');EE.openOffer=pid;renderEE();var row=document.querySelector('[data-act="offer"][data-id="'+pid+'"]');if(row){row.scrollIntoView({block:'center'});row.focus({preventScroll:true})}return}
+  if(a==='back')closeEE();
+  else if(a==='tab'){EE.tab=b.getAttribute('data-tab');closeOverlay();renderEE();var nt=$('tab-'+EE.tab);if(nt)nt.focus();if(EE.tab==='near'&&CONSENT.location&&LOC.status==='idle'&&CONFIRMED)locate()}
+  else if(a==='offer'){var id=b.getAttribute('data-id');EE.openOffer=EE.openOffer===id?null:id;renderEE();var ob=document.querySelector('[data-act="offer"][data-id="'+id+'"]');if(ob)ob.focus()}
+  else if(a==='see-offer'){EE.tab='near';EE.openOffer=b.getAttribute('data-id');renderEE()}
+  else if(a==='why'){var n=INBOX.filter(function(x){return x.id===b.getAttribute('data-id')})[0];n.showWhy=!n.showWhy;renderEE()}
+  else if(a==='dismiss'){var n2=INBOX.filter(function(x){return x.id===b.getAttribute('data-id')})[0];n2.dismissed=true;renderEE();toast('You will see fewer alerts like this.',function(){n2.dismissed=false;renderEE()})}
+  else if(a==='claim')confirmSheet('Move '+jod(ME.vault)+' to your account?','Your vault balance goes to your current account today.','Move to my account','claim-ok');
+  else if(a==='claim-ok'){ME.claimed=true;ME.vault=0;closeOverlay();renderEE();toast('Moved to your account.')}
+  else if(a==='plans')plansSheet();
+  else if(a==='keep'){toast('Got it. We will not suggest a new plan for 3 months.');}
+  else if(a==='subscribe'){var p=b.getAttribute('data-plan');confirmSheet('Switch to '+p+'?',p+' costs '+jod(PLANS[p].fee)+' a month. You can switch back at any time.','Confirm '+p,'subscribe-ok','data-plan="'+p+'"')}
+  else if(a==='subscribe-ok'){var old=ME.plan,np=b.getAttribute('data-plan');ME.plan=np;$('plan-name').textContent=np;closeOverlay();renderEE();toast('You are now on '+np+'.',function(){ME.plan=old;$('plan-name').textContent=old;renderEE()})}
+  else if(a==='close-sheet')closeOverlay();
+  else if(a==='consent-on'){CONSENT[b.getAttribute('data-k')]=true;saveConsent();renderEE()}
+  else if(a==='all-off')confirmSheet('Turn everything off?','No alerts, no spend analysis and no location. Card discounts and cashback still work when you pay.','Turn everything off','all-off-ok');
+  else if(a==='all-off-ok'){CONSENT={location:false,analysis:false,marketing:false};saveConsent();closeOverlay();renderEE();toast('Everything is off.')}
+  else if(a==='undo'&&undoFn){var f=undoFn;undoFn=null;$('toast').hidden=true;f()}
+});
+document.addEventListener('change',function(e){var k=e.target.getAttribute('data-consent');if(k){CONSENT[k]=e.target.checked;saveConsent();
+  if(k==='location'&&!e.target.checked)LOC={status:'idle',lat:null,lng:null,acc:null,sample:false,err:''};   /* location off: forget the position at once */
+  toast(e.target.checked?'Turned on.':'Turned off. Applies right away.')}});
+document.addEventListener('input',function(e){
+  if(e.target.id==='pay-amt'){var v=parseFloat(e.target.value);if(v>0){EE.amount=v;var f=e.target.closest('form'),o=OFFERS.filter(function(x){return x.id===f.getAttribute('data-id')})[0],pos=e.target.selectionStart;f.outerHTML=calc(o);var ni=$('pay-amt');ni.focus();try{ni.setSelectionRange(pos,pos)}catch(_){}}}
+  if(e.target.id==='easy-amt'||e.target.id==='easy-m')easyOut();
+});
+document.addEventListener('submit',function(e){e.preventDefault()});
+function easyOut(){var o=$('easy-out');if(!o)return;var amt=parseFloat($('easy-amt').value),mo=parseInt($('easy-m').value,10);
+  o.innerHTML=amt>0&&mo>=3&&mo<=36?'<span>'+mo+' months at 0%</span><span class="num">'+jod(amt/mo)+' / month</span>':'<span>Enter a price and 3–36 months</span><span></span>'}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){if($('overlay').innerHTML)closeOverlay();else if(!$('ee').hidden)closeEE()}
+  if((e.key==='ArrowRight'||e.key==='ArrowLeft')&&e.target.getAttribute('role')==='tab'){var ts=['you','near','alerts','privacy'],i=ts.indexOf(EE.tab);i=(i+(e.key==='ArrowRight'?1:-1)+4)%4;EE.tab=ts[i];renderEE();$('tab-'+EE.tab).focus()}
+});
+renderHub();
+if(location.hash==='#etihad-everywhere')openEE('you');
+</script>
