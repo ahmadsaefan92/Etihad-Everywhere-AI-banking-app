@@ -237,6 +237,18 @@ button,input{font:inherit;color:inherit}
 .callout .meta .ico{width:14px;height:14px}
 .callout .x{margin-inline-start:auto;width:36px;height:36px;border:0;border-radius:50%;background:var(--ground);cursor:pointer;font-size:1.1rem}
 .maptag2{position:absolute;inset-inline-start:10px;bottom:10px;z-index:5;background:rgb(255 255 255 / .94);border-radius:10px;padding:4px 9px;font-size:.7rem;color:var(--ink-2);box-shadow:0 1px 4px rgb(0 0 0 / .12)}
+/* push notification banner (an alert from the bank arriving while the app is open) */
+.push{position:absolute;top:calc(8px + env(safe-area-inset-top,0px));inset-inline:10px;z-index:80;display:grid;grid-template-columns:36px 1fr;gap:4px 10px;background:rgb(255 255 255 / .97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:18px;padding:10px 12px;box-shadow:0 14px 34px rgb(0 0 0 / .25);cursor:pointer;border:0;text-align:start;width:auto;animation:drop .35s var(--ease) both}
+@keyframes drop{from{transform:translateY(-120%)}to{transform:none}}
+.push i{grid-row:span 3;width:36px;height:36px;border-radius:10px;background:linear-gradient(150deg,var(--burg1),var(--o1));display:grid;place-items:center;color:#fff}
+.push i .ico{width:20px;height:20px}
+.push small{color:var(--muted);font-size:.72rem}
+.push b{font-size:.9rem}
+.push span{font-size:.82rem;color:var(--ink-2)}
+.walkbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.walkbar .st{font-size:.78rem;color:var(--muted)}
+.zone{position:absolute;z-index:1;border-radius:50%;border:1.5px dashed rgb(240 78 26 / .45);background:rgb(240 78 26 / .06);transform:translate(-50%,-50%);pointer-events:none}
+.zone.in{border-color:var(--o2);background:rgb(240 78 26 / .16)}
 .locating{display:grid;justify-items:center;gap:10px;padding:26px 10px;text-align:center;color:var(--ink-2)}
 .spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--o2);animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -384,26 +396,69 @@ function locate(){
   LOC={status:'locating',sample:false};renderEE();
   if(!('geolocation' in navigator)){LOC={status:'denied',err:'This device does not share location.'};renderEE();return}
   /* the console only learns whether location worked and how accurate it was, never the coordinates */
-  try{navigator.geolocation.getCurrentPosition(function(p){LOC={status:'ok',lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy),sample:false};emit('location',{status:'live',accuracy:LOC.acc});renderEE()},
+  try{navigator.geolocation.getCurrentPosition(function(p){LOC={status:'ok',lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy),sample:false};emit('location',{status:'live',accuracy:LOC.acc});geoInit();watchLive();renderEE()},
     function(err){LOC={status:'denied',err:err&&err.code===1?'Location permission was refused by your device or this viewer.':'Your location could not be found right now.'};emit('location',{status:'refused'});renderEE()},{enableHighAccuracy:true,timeout:10000,maximumAge:60000})}
   catch(e){LOC={status:'denied',err:'Location is blocked in this viewer.'};renderEE()}
 }
 /* keep keyboard focus on the control that was used after a re-render */
 function focusAct(act,attr,val){var sel='[data-act="'+act+'"]'+(attr?'['+attr+'="'+val+'"]':''),el=document.querySelector(sel);if(el)el.focus({preventScroll:true})}
-function useSample(){LOC={status:'ok',lat:SAMPLE_LOC.lat,lng:SAMPLE_LOC.lng,acc:SAMPLE_LOC.acc,sample:true};emit('location',{status:'sample'});renderEE()}
+function useSample(){LOC={status:'ok',lat:SAMPLE_LOC.lat,lng:SAMPLE_LOC.lng,acc:SAMPLE_LOC.acc,sample:true};emit('location',{status:'sample'});geoInit();renderEE()}
 function mapCard(){
   if(!CONSENT.location)return '';
   if(LOC.status==='locating')return '<div class="card"><div class="locating" role="status"><span class="spin" aria-hidden="true"></span><b>Finding your location…</b><span class="sub">Allow location if your device asks.</span></div></div>';
   if(LOC.status==='denied'||LOC.status==='idle')return '<div class="card"><div class="empty">'+ico('pin')+'<b>'+(LOC.status==='idle'?'Show where you are':'We could not get your location')+'</b><span>'+esc(LOC.err||'See partner offers around you on the map.')+'</span><div class="row"><button type="button" class="btn primary" data-act="locate">'+(LOC.status==='idle'?'Show my location':'Try again')+'</button>'+(LOC.status==='denied'?'<button type="button" class="btn" data-act="sample-loc">Use a sample location</button>':'')+'</div></div></div>';
   return mapCard2();
 }
+/* ---------- on-device geofencing ----------
+   Shops sit at fixed offsets (metres) from where the customer started; the customer's own movement (real GPS deltas,
+   or the "Walk around" demo) moves them. Entering a 150 m zone tells the console only the shop and the distance. */
+var GEO={r:150,base:{},ux:0,uy:0,inside:{},origin:null,watch:null,walk:false,timer:null,target:0};
+function geoInit(){GEO.base={};OFFERS.forEach(function(o){var a=(BEARING[o.id]||0)*Math.PI/180,d=GEO.base[o.id]&&GEO.base[o.id].d0||o.dist;GEO.base[o.id]={x:d*Math.sin(a),y:d*Math.cos(a),d0:d}});GEO.ux=0;GEO.uy=0;GEO.inside={};geoUpdate(true)}
+function geoUpdate(silent){
+  OFFERS.forEach(function(o){var b=GEO.base[o.id];if(!b){var a=(BEARING[o.id]||0)*Math.PI/180;b=GEO.base[o.id]={x:o.dist*Math.sin(a),y:o.dist*Math.cos(a),d0:o.dist}}
+    var vx=b.x-GEO.ux,vy=b.y-GEO.uy;o.dist=Math.max(5,Math.round(Math.sqrt(vx*vx+vy*vy)));BEARING[o.id]=(Math.atan2(vx,vy)*180/Math.PI+360)%360;
+    var inNow=o.dist<=GEO.r;if(inNow&&!GEO.inside[o.id]&&!silent){if(HOST)emit('geofence',{id:o.id,name:o.name,dist:o.dist,type:o.type,rate:o.rate});else localGeoAlert(o)}GEO.inside[o.id]=inNow});
+}
+/* standalone link (no console): the same rules, applied on the device, so the demo still works on its own */
+var LOCAL_SENT={};
+function localGeoAlert(o){
+  var h=new Date().getHours(),today=new Date().toISOString().slice(0,10),n=INBOX.filter(function(x){return x.auto&&x.day===today}).length;
+  if(!CONSENT.marketing||!CONSENT.location||h>=22||h<8||n>=2||LOCAL_SENT[o.id])return;
+  LOCAL_SENT[o.id]=1;
+  var a={id:'g'+Date.now(),auto:true,day:today,offer:o.id,title:o.name+' is '+o.dist+' m away',body:(o.type==='discount'?o.rate+'% off when you pay with your Bank al Etihad card':o.rate+'% cashback at this partner')+', and your Rank '+ME.rank+' cashback still applies.',why:'You are within '+GEO.r+' m of a partner shop, and location and offers are on. At most 2 alerts a day, never between 22:00 and 08:00.'};
+  INBOX.unshift(a);SEEN[a.id]=1;$('bell-dot').hidden=false;showPush(a);
+}
+function refreshMap(){var m=document.querySelector('.map2');if(!m)return;var card=m.closest('.card');if(card){var t=document.createElement('div');t.innerHTML=mapCard2();card.replaceWith(t.firstChild)}}
+function walkTick(){
+  var tg=nextShop();if(!tg)return;
+  var b=GEO.base[tg.id],dx=b.x-GEO.ux,dy=b.y-GEO.uy,d=Math.sqrt(dx*dx+dy*dy),step=45;
+  if(d<=30){GEO.target++;return}
+  GEO.ux+=dx/d*Math.min(step,d);GEO.uy+=dy/d*Math.min(step,d);geoUpdate(false);refreshMap();
+}
+function walkToggle(on){GEO.walk=on;clearInterval(GEO.timer);if(on){GEO.timer=setInterval(walkTick,1200);emit('walk',{on:true})}else emit('walk',{on:false});refreshMap()}
+function geoStop(){if(GEO.walk){clearInterval(GEO.timer);GEO.walk=false}if(GEO.watch!=null){try{navigator.geolocation.clearWatch(GEO.watch)}catch(e){}GEO.watch=null}GEO.origin=null;GEO.ux=0;GEO.uy=0;GEO.inside={}}
+function nextShop(){var list=OFFERS.slice().filter(function(o){return GEO.base[o.id]}).sort(function(a,b){return GEO.base[a.id].d0-GEO.base[b.id].d0});return list.length?list[GEO.target%list.length]:null}
+function watchLive(){
+  if(GEO.watch!=null||!('geolocation' in navigator))return;
+  try{GEO.watch=navigator.geolocation.watchPosition(function(p){var la=p.coords.latitude,ln=p.coords.longitude;
+    if(!GEO.origin){GEO.origin={la:la,ln:ln};return}
+    GEO.uy=(la-GEO.origin.la)*111320;GEO.ux=(ln-GEO.origin.ln)*111320*Math.cos(la*Math.PI/180);geoUpdate(false);refreshMap()},function(){},{enableHighAccuracy:true,maximumAge:5000})}catch(e){}
+}
+/* push banner for alerts that arrive while the app is open */
+var SEEN={};
+function showPush(n){var ph=$('phone'),old=$('push');if(old)old.remove();var b=document.createElement('button');b.type='button';b.className='push';b.id='push';b.setAttribute('aria-live','polite');
+  b.innerHTML='<i aria-hidden="true">'+ico('pin')+'</i><small>Etihad Everywhere · now</small><b>'+esc(n.title)+'</b><span>'+esc(n.body)+'</span>';
+  b.addEventListener('click',function(){b.remove();openEE('alerts',$('bell'))});ph.appendChild(b);setTimeout(function(){if(b.isConnected)b.remove()},6500)}
+
 /* map v2 */
 EE.zoom=1;EE.filter='all';EE.sel=null;EE.walk=false;
 I.store='<path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v2a3 3 0 0 1-6 0 3 3 0 0 1-6 0 3 3 0 0 1-6 0z"/><path d="M5 13v8h14v-8"/><path d="M10 21v-5h4v5"/>';
 I.walk='<circle cx="13" cy="4" r="2"/><path d="m9 20 3-6 3 3v4M7 12l3-4 4 1 3 3"/>';
 I.crosshair='<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="2"/>';
 I.tag='<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>';
-function pinPos(o){var pct=(23+Math.min(o.dist,1800)/1800*22)*EE.zoom,a=(BEARING[o.id]||0)*Math.PI/180;return {x:50+pct*Math.sin(a),y:56-pct*1.15*Math.cos(a)}}
+/* square-root scale: near shops stay readable and the customer visibly walks up to them */
+function distPct(d){return 45*Math.sqrt(Math.min(d,1800)/1800)*EE.zoom}
+function pinPos(o){var pct=distPct(o.dist),a=(BEARING[o.id]||0)*Math.PI/180;return {x:50+pct*Math.sin(a),y:56-pct*1.15*Math.cos(a)}}
 function inView(p){return p.x>6&&p.x<94&&p.y>12&&p.y<96}
 function youBalloon(){
   return '<span class="you" aria-hidden="true"><span class="r"></span><span class="r r2"></span>'+
@@ -424,11 +479,15 @@ function mapCard2(){
   var route='';
   if(sel&&EE.walk){var p=pinPos(sel);route='<svg class="route" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M50 56 Q '+((50+p.x)/2+6).toFixed(1)+' '+((56+p.y)/2).toFixed(1)+' '+p.x.toFixed(1)+' '+(p.y+1).toFixed(1)+'"/></svg>'}
   var ring=Math.max(40,Math.min(220,(LOC.acc||60)*0.5*EE.zoom));
+  var zr=distPct(GEO.r),anyIn=OFFERS.some(function(o){return GEO.inside[o.id]}),nx=GEO.walk&&nextShop();
+  var zone='<span class="zone'+(anyIn?' in':'')+'" style="left:50%;top:56%;width:'+(2*zr).toFixed(1)+'%;height:'+(2*zr*1.15).toFixed(1)+'%" aria-hidden="true"></span>';
   return '<div class="card" style="padding:12px;gap:10px">'+
     '<div class="row sb"><h3>Shops around you</h3><span class="pill p-w">'+(LOC.sample?'Sample location':'Live')+'</span></div>'+
+    '<div class="walkbar"><button type="button" class="btn'+(GEO.walk?'':' primary')+'" data-act="walk-mode" aria-pressed="'+GEO.walk+'">'+ico('walk')+(GEO.walk?'Stop walking':'Walk around')+'</button>'+
+      '<span class="st" role="status">'+(GEO.walk&&nx?'Walking to '+esc(nx.name)+' · '+nx.dist+' m':anyIn?'You are near '+esc(OFFERS.filter(function(o){return GEO.inside[o.id]}).map(function(o){return o.name}).join(', ')):'Alerts come by themselves within '+GEO.r+' m of a shop')+'</span></div>'+
     '<div class="chips" role="group" aria-label="Filter shops">'+[['all','All shops'],['discount','Card discounts'],['cashback','Cashback']].map(function(f){return '<button type="button" data-act="filter" data-f="'+f[0]+'" aria-pressed="'+(EE.filter===f[0])+'">'+f[1]+'</button>'}).join('')+'</div>'+
     '<div class="map2" role="group" aria-label="Map of shops around you">'+mapSvg().replace('<svg ','<svg class="base" style="transform:scale('+(0.9+EE.zoom*0.1).toFixed(2)+')" ')+
-    '<span class="accring" style="width:'+ring+'px;height:'+ring+'px" aria-hidden="true"></span>'+route+shops+youBalloon()+
+    zone+'<span class="accring" style="width:'+ring+'px;height:'+ring+'px" aria-hidden="true"></span>'+route+shops+youBalloon()+
     '<span class="count"><i aria-hidden="true"></i>'+inv+' shops in view</span>'+
     '<span class="ctrl"><button type="button" data-act="zoom" data-z="in" aria-label="Zoom in">+</button><button type="button" data-act="zoom" data-z="out" aria-label="Zoom out">−</button><button type="button" data-act="recenter" aria-label="Centre on me">'+ico('crosshair')+'</button></span>'+
     '<span class="maptag2">'+(LOC.sample?esc(SAMPLE_LOC.label):'±'+LOC.acc+' m · on this device only')+'</span></div>'+
@@ -542,6 +601,7 @@ document.addEventListener('click',function(e){
   if(a==='shop'){var sid=b.getAttribute('data-id');EE.sel=EE.sel===sid?null:sid;EE.walk=!!EE.sel;if(EE.sel){var so2=OFFERS.filter(function(o){return o.id===sid})[0];emit('offer-view',{id:sid,name:so2&&so2.name,via:'map'})}renderEE();var cb=document.querySelector('.callout .btn.primary');if(cb)cb.focus({preventScroll:true});return}
   if(a==='shop-close'){var was=EE.sel;EE.sel=null;EE.walk=false;renderEE();focusAct('shop','data-id',was);return}
   if(a==='walk'){EE.walk=!EE.walk;renderEE();focusAct('walk');return}
+  if(a==='walk-mode'){if(!GEO.base||!Object.keys(GEO.base).length)geoInit();walkToggle(!GEO.walk);focusAct('walk-mode');return}
   if(a==='shop-offer'){a='pin'}
   if(a==='pin'){var pid=b.getAttribute('data-id');EE.openOffer=pid;var po=OFFERS.filter(function(o){return o.id===pid})[0];emit('offer-calc',{id:pid,name:po&&po.name});renderEE();var row=document.querySelector('[data-act="offer"][data-id="'+pid+'"]');if(row){row.scrollIntoView({block:'center'});row.focus({preventScroll:true})}return}
   if(a==='back')closeEE();
@@ -563,7 +623,7 @@ document.addEventListener('click',function(e){
   else if(a==='undo'&&undoFn){var f=undoFn;undoFn=null;$('toast').hidden=true;f()}
 });
 document.addEventListener('change',function(e){var k=e.target.getAttribute('data-consent');if(k){CONSENT[k]=e.target.checked;saveConsent();
-  if(k==='location'&&!e.target.checked)LOC={status:'idle',lat:null,lng:null,acc:null,sample:false,err:''};   /* location off: forget the position at once */
+  if(k==='location'&&!e.target.checked){LOC={status:'idle',lat:null,lng:null,acc:null,sample:false,err:''};geoStop()}   /* location off: forget the position at once */
   emit('consent',{consent:CONSENT,confirmed:!!CONFIRMED,source:'privacy switch '+k});
   toast(e.target.checked?'Turned on.':'Turned off. Applies right away.')}});
 document.addEventListener('input',function(e){
@@ -586,15 +646,20 @@ function emit(kind,data){if(!HOST)return;try{window.parent.postMessage({type:'ee
 function hashN(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return h}
 function applyState(s){
   HOST=true;
+  var refChanged=s.customer&&s.customer.ref!==ME.ref;
   if(s.customer)ME=Object.assign({claimed:false},s.customer);
+  if(refChanged){geoStop();GEO.base={};GEO.target=0;SEEN={};SEEN._init=false}
   if(s.consent)CONSENT=Object.assign({},s.consent);
   CONFIRMED=s.confirmed?{at:s.confirmedAt||'',choices:CONSENT}:null;
   if(s.assumptions)A=Object.assign(A,s.assumptions);
   KILL=!!s.kill;
   if(Array.isArray(s.offers)&&s.offers.length){OFFERS=s.offers.map(function(o){var h=hashN(o.id+o.name);var known={Fraij:120,'Ikura Jordan':340,'Souq Fann':450};
     return {id:o.id,name:o.name,type:o.type==='cashback'?'cashback':'discount',rate:o.rate||0,dist:known[o.name]||(150+h%1650),color:PALETTE[h%PALETTE.length],cat:o.type==='cashback'?'Partner cashback':'Card discount'}});
-    OFFERS.forEach(function(o){if(BEARING[o.id]==null)BEARING[o.id]=hashN(o.id)%360});}
-  if(Array.isArray(s.alerts)){var old={};INBOX.forEach(function(n){old[n.id]=n});INBOX=s.alerts.map(function(n){var o=old[n.id];return Object.assign({},n,{dismissed:n.dismissed||(o&&o.dismissed),showWhy:o&&o.showWhy})})}
+    OFFERS.forEach(function(o){if(BEARING[o.id]==null)BEARING[o.id]=hashN(o.id)%360});
+    if(Object.keys(GEO.base).length)geoUpdate(true);}   /* keep the customer's walked position when the console pushes new state */
+  if(Array.isArray(s.alerts)){var old={};INBOX.forEach(function(n){old[n.id]=n});INBOX=s.alerts.map(function(n){var o=old[n.id];return Object.assign({},n,{dismissed:n.dismissed||(o&&o.dismissed),showWhy:o&&o.showWhy})});
+    var fresh=INBOX.filter(function(n){return !SEEN[n.id]&&!n.dismissed});INBOX.forEach(function(n){SEEN[n.id]=1});
+    if(SEEN._init&&fresh.length&&!KILL)showPush(fresh[fresh.length-1]);SEEN._init=true}
   $('plan-name').textContent=ME.plan;
   var pr=document.querySelector('.proto');if(pr)pr.textContent='Connected to the Etihad Everywhere Console · '+(ME.ref||'')+' · synthetic data';
   $('bell-dot').hidden=!INBOX.some(function(n){return !n.dismissed});
