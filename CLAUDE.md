@@ -8,7 +8,7 @@ Built 2026-11-18 at the user's request ("a fully online system fulfilling all th
 
 ## GitHub
 
-Always push the latest version to https://github.com/ahmadsaefan92/Etihad-Everywhere-AI-banking-app after every finished change (user's standing instruction, 2026-11-18). Git was not installed on this machine at that date; installing it and signing in to GitHub need the user's go-ahead and their own sign-in. Keep `_tmp_video/` and scratch files out of the repo.
+Always push the latest version to https://github.com/ahmadsaefan92/Etihad-Everywhere-AI-banking-app after every finished change (user's standing instruction, 2026-11-18). Set up 2026-11-18: Git for Windows installed with winget (at `C:\Program Files\Git\cmd\git.exe`; a new shell may not have it on PATH yet), this folder is the repo on branch `main` tracking `origin/main`, identity `ahmadsaefan92 <ahmadsaefan92@users.noreply.github.com>` (no personal email in commits), `core.autocrlf false` so data files keep their exact bytes, `.gitignore` for temp files. The user signed in through Git Credential Manager in a terminal tab, so later pushes work from the normal shell. Commit messages end with the Co-Authored-By line. First push: commit a4e5d2a, 249 files.
 
 ## The mobile app prototype
 
