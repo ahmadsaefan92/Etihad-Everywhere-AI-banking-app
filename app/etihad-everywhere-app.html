@@ -345,7 +345,7 @@ function model(){
 /* ---------- consent and alerts (kept on this device only) ---------- */
 var CONSENT={location:true,analysis:true,marketing:true};
 try{var saved=JSON.parse(localStorage.getItem('ee_consent')||'null');if(saved)CONSENT=Object.assign(CONSENT,saved)}catch(e){}
-function saveConsent(){try{localStorage.setItem('ee_consent',JSON.stringify(CONSENT))}catch(e){}}
+function saveConsent(){if(typeof HOST!=='undefined'&&HOST)return;try{localStorage.setItem('ee_consent',JSON.stringify(CONSENT))}catch(e){}}
 var OFFERS=[
  {id:'fraij',name:'Fraij',type:'discount',rate:40,dist:120,color:'#B0283F',cat:'Card discount'},
  {id:'ikura',name:'Ikura Jordan',type:'discount',rate:15,dist:340,color:'#0F766E',cat:'Card discount'},
@@ -383,13 +383,14 @@ function locate(){
   if(!CONSENT.location){LOC.status='idle';return}
   LOC={status:'locating',sample:false};renderEE();
   if(!('geolocation' in navigator)){LOC={status:'denied',err:'This device does not share location.'};renderEE();return}
-  try{navigator.geolocation.getCurrentPosition(function(p){LOC={status:'ok',lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy),sample:false};renderEE()},
-    function(err){LOC={status:'denied',err:err&&err.code===1?'Location permission was refused by your device or this viewer.':'Your location could not be found right now.'};renderEE()},{enableHighAccuracy:true,timeout:10000,maximumAge:60000})}
+  /* the console only learns whether location worked and how accurate it was, never the coordinates */
+  try{navigator.geolocation.getCurrentPosition(function(p){LOC={status:'ok',lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy),sample:false};emit('location',{status:'live',accuracy:LOC.acc});renderEE()},
+    function(err){LOC={status:'denied',err:err&&err.code===1?'Location permission was refused by your device or this viewer.':'Your location could not be found right now.'};emit('location',{status:'refused'});renderEE()},{enableHighAccuracy:true,timeout:10000,maximumAge:60000})}
   catch(e){LOC={status:'denied',err:'Location is blocked in this viewer.'};renderEE()}
 }
 /* keep keyboard focus on the control that was used after a re-render */
 function focusAct(act,attr,val){var sel='[data-act="'+act+'"]'+(attr?'['+attr+'="'+val+'"]':''),el=document.querySelector(sel);if(el)el.focus({preventScroll:true})}
-function useSample(){LOC={status:'ok',lat:SAMPLE_LOC.lat,lng:SAMPLE_LOC.lng,acc:SAMPLE_LOC.acc,sample:true};renderEE()}
+function useSample(){LOC={status:'ok',lat:SAMPLE_LOC.lat,lng:SAMPLE_LOC.lng,acc:SAMPLE_LOC.acc,sample:true};emit('location',{status:'sample'});renderEE()}
 function mapCard(){
   if(!CONSENT.location)return '';
   if(LOC.status==='locating')return '<div class="card"><div class="locating" role="status"><span class="spin" aria-hidden="true"></span><b>Finding your location…</b><span class="sub">Allow location if your device asks.</span></div></div>';
@@ -491,6 +492,7 @@ function calc(o){
     '<div class="line"><span>Your Rank '+ME.rank+' cashback '+rank+'%</span><span class="num">+'+jod(rcb)+'</span></div><div class="line total"><span>You gain</span><span class="num">'+jod(disc+partner+rcb)+'</span></div></form>';
 }
 function tabAlerts(){
+  if(KILL)return '<div class="card empty">'+ico('shield')+'<b>Alerts are paused by the bank</b><span>Your cashback and card discounts still work when you pay.</span></div>';
   var items=INBOX.filter(function(n){return !n.dismissed});
   if(!CONSENT.marketing&&!CONSENT.location)return '<div class="card empty">'+ico('bell')+'<b>Alerts are off</b><span>You turned off location and offers. Your monthly summary is still in For you.</span></div>';
   return '<div class="card"><div class="row sb"><h3>Alerts</h3><span class="sub">Max 2 a day · quiet 22:00–08:00</span></div>'+(items.length?items.map(function(n){var o=n.offer&&OFFERS.filter(function(x){return x.id===n.offer})[0];
@@ -528,39 +530,41 @@ document.addEventListener('click',function(e){
   if(a==='scrim'&&e.target===b){closeOverlay();return}
   if(a==='cs-next'){e.preventDefault();[].forEach.call(document.querySelectorAll('[data-draft]'),function(c){DRAFT[c.getAttribute('data-draft')]=c.checked});consentStep2();return}
   if(a==='cs-back'){consentStep1();return}
-  if(a==='cs-later'){closeOverlay();CONSENT={location:false,analysis:false,marketing:false};saveConsent();renderEE();toast('Nothing is shared. You can turn things on in Privacy.');return}
+  if(a==='cs-later'){closeOverlay();CONSENT={location:false,analysis:false,marketing:false};saveConsent();emit('consent',{consent:CONSENT,confirmed:false,source:'not now'});renderEE();toast('Nothing is shared. You can turn things on in Privacy.');return}
   if(a==='cs-confirm'){CONSENT=Object.assign({},DRAFT);saveConsent();CONFIRMED={at:new Date().toISOString(),choices:DRAFT};try{localStorage.setItem('ee_confirmed',JSON.stringify(CONFIRMED))}catch(_){}
+    emit('consent',{consent:CONSENT,confirmed:true,source:'popup'});
     closeOverlay();EE.tab=CONSENT.location?'near':'you';renderEE();toast('Your choices are saved.');if(CONSENT.location)locate();return}
   if(a==='locate'){locate();return}
   if(a==='sample-loc'){useSample();return}
   if(a==='filter'){EE.filter=b.getAttribute('data-f');if(EE.sel&&EE.filter!=='all'){var so=OFFERS.filter(function(o){return o.id===EE.sel})[0];if(so&&so.type!==EE.filter){EE.sel=null;EE.walk=false}}renderEE();focusAct('filter','data-f',EE.filter);return}
   if(a==='zoom'){EE.zoom=b.getAttribute('data-z')==='in'?Math.min(1.8,EE.zoom+0.35):Math.max(0.55,EE.zoom-0.35);renderEE();focusAct('zoom','data-z',b.getAttribute('data-z'));return}
   if(a==='recenter'){EE.zoom=1;EE.sel=null;EE.walk=false;renderEE();focusAct('recenter');return}
-  if(a==='shop'){var sid=b.getAttribute('data-id');EE.sel=EE.sel===sid?null:sid;EE.walk=!!EE.sel;renderEE();var cb=document.querySelector('.callout .btn.primary');if(cb)cb.focus({preventScroll:true});return}
+  if(a==='shop'){var sid=b.getAttribute('data-id');EE.sel=EE.sel===sid?null:sid;EE.walk=!!EE.sel;if(EE.sel){var so2=OFFERS.filter(function(o){return o.id===sid})[0];emit('offer-view',{id:sid,name:so2&&so2.name,via:'map'})}renderEE();var cb=document.querySelector('.callout .btn.primary');if(cb)cb.focus({preventScroll:true});return}
   if(a==='shop-close'){var was=EE.sel;EE.sel=null;EE.walk=false;renderEE();focusAct('shop','data-id',was);return}
   if(a==='walk'){EE.walk=!EE.walk;renderEE();focusAct('walk');return}
   if(a==='shop-offer'){a='pin'}
-  if(a==='pin'){var pid=b.getAttribute('data-id');EE.openOffer=pid;renderEE();var row=document.querySelector('[data-act="offer"][data-id="'+pid+'"]');if(row){row.scrollIntoView({block:'center'});row.focus({preventScroll:true})}return}
+  if(a==='pin'){var pid=b.getAttribute('data-id');EE.openOffer=pid;var po=OFFERS.filter(function(o){return o.id===pid})[0];emit('offer-calc',{id:pid,name:po&&po.name});renderEE();var row=document.querySelector('[data-act="offer"][data-id="'+pid+'"]');if(row){row.scrollIntoView({block:'center'});row.focus({preventScroll:true})}return}
   if(a==='back')closeEE();
   else if(a==='tab'){EE.tab=b.getAttribute('data-tab');closeOverlay();renderEE();var nt=$('tab-'+EE.tab);if(nt)nt.focus();if(EE.tab==='near'&&CONSENT.location&&LOC.status==='idle'&&CONFIRMED)locate()}
   else if(a==='offer'){var id=b.getAttribute('data-id');EE.openOffer=EE.openOffer===id?null:id;renderEE();var ob=document.querySelector('[data-act="offer"][data-id="'+id+'"]');if(ob)ob.focus()}
   else if(a==='see-offer'){EE.tab='near';EE.openOffer=b.getAttribute('data-id');renderEE()}
-  else if(a==='why'){var n=INBOX.filter(function(x){return x.id===b.getAttribute('data-id')})[0];n.showWhy=!n.showWhy;renderEE()}
-  else if(a==='dismiss'){var n2=INBOX.filter(function(x){return x.id===b.getAttribute('data-id')})[0];n2.dismissed=true;renderEE();toast('You will see fewer alerts like this.',function(){n2.dismissed=false;renderEE()})}
+  else if(a==='why'){var n=INBOX.filter(function(x){return x.id===b.getAttribute('data-id')})[0];n.showWhy=!n.showWhy;if(n.showWhy)emit('alert-why',{id:n.id,title:n.title});renderEE()}
+  else if(a==='dismiss'){var n2=INBOX.filter(function(x){return x.id===b.getAttribute('data-id')})[0];n2.dismissed=true;emit('alert-dismiss',{id:n2.id,title:n2.title});renderEE();toast('You will see fewer alerts like this.',function(){n2.dismissed=false;emit('alert-undismiss',{id:n2.id,title:n2.title});renderEE()})}
   else if(a==='claim')confirmSheet('Move '+jod(ME.vault)+' to your account?','Your vault balance goes to your current account today.','Move to my account','claim-ok');
-  else if(a==='claim-ok'){ME.claimed=true;ME.vault=0;closeOverlay();renderEE();toast('Moved to your account.')}
+  else if(a==='claim-ok'){var amt=ME.vault;ME.claimed=true;ME.vault=0;emit('vault-claim',{amount:amt});closeOverlay();renderEE();toast('Moved to your account.')}
   else if(a==='plans')plansSheet();
-  else if(a==='keep'){toast('Got it. We will not suggest a new plan for 3 months.');}
+  else if(a==='keep'){emit('keep-plan',{plan:ME.plan});toast('Got it. We will not suggest a new plan for 3 months.');}
   else if(a==='subscribe'){var p=b.getAttribute('data-plan');confirmSheet('Switch to '+p+'?',p+' costs '+jod(PLANS[p].fee)+' a month. You can switch back at any time.','Confirm '+p,'subscribe-ok','data-plan="'+p+'"')}
-  else if(a==='subscribe-ok'){var old=ME.plan,np=b.getAttribute('data-plan');ME.plan=np;$('plan-name').textContent=np;closeOverlay();renderEE();toast('You are now on '+np+'.',function(){ME.plan=old;$('plan-name').textContent=old;renderEE()})}
+  else if(a==='subscribe-ok'){var old=ME.plan,np=b.getAttribute('data-plan');ME.plan=np;$('plan-name').textContent=np;emit('plan-switch',{from:old,to:np});closeOverlay();renderEE();toast('You are now on '+np+'.',function(){ME.plan=old;$('plan-name').textContent=old;emit('plan-switch',{from:np,to:old,undo:true});renderEE()})}
   else if(a==='close-sheet')closeOverlay();
-  else if(a==='consent-on'){CONSENT[b.getAttribute('data-k')]=true;saveConsent();renderEE()}
+  else if(a==='consent-on'){CONSENT[b.getAttribute('data-k')]=true;saveConsent();emit('consent',{consent:CONSENT,confirmed:!!CONFIRMED,source:'turned on '+b.getAttribute('data-k')});renderEE()}
   else if(a==='all-off')confirmSheet('Turn everything off?','No alerts, no spend analysis and no location. Card discounts and cashback still work when you pay.','Turn everything off','all-off-ok');
-  else if(a==='all-off-ok'){CONSENT={location:false,analysis:false,marketing:false};saveConsent();closeOverlay();renderEE();toast('Everything is off.')}
+  else if(a==='all-off-ok'){CONSENT={location:false,analysis:false,marketing:false};saveConsent();emit('consent',{consent:CONSENT,confirmed:!!CONFIRMED,source:'everything off'});closeOverlay();renderEE();toast('Everything is off.')}
   else if(a==='undo'&&undoFn){var f=undoFn;undoFn=null;$('toast').hidden=true;f()}
 });
 document.addEventListener('change',function(e){var k=e.target.getAttribute('data-consent');if(k){CONSENT[k]=e.target.checked;saveConsent();
   if(k==='location'&&!e.target.checked)LOC={status:'idle',lat:null,lng:null,acc:null,sample:false,err:''};   /* location off: forget the position at once */
+  emit('consent',{consent:CONSENT,confirmed:!!CONFIRMED,source:'privacy switch '+k});
   toast(e.target.checked?'Turned on.':'Turned off. Applies right away.')}});
 document.addEventListener('input',function(e){
   if(e.target.id==='pay-amt'){var v=parseFloat(e.target.value);if(v>0){EE.amount=v;var f=e.target.closest('form'),o=OFFERS.filter(function(x){return x.id===f.getAttribute('data-id')})[0],pos=e.target.selectionStart;f.outerHTML=calc(o);var ni=$('pay-amt');ni.focus();try{ni.setSelectionRange(pos,pos)}catch(_){}}}
@@ -573,6 +577,35 @@ document.addEventListener('keydown',function(e){
   if(e.key==='Escape'){if($('overlay').innerHTML)closeOverlay();else if(!$('ee').hidden)closeEE()}
   if((e.key==='ArrowRight'||e.key==='ArrowLeft')&&e.target.getAttribute('role')==='tab'){var ts=['you','near','alerts','privacy'],i=ts.indexOf(EE.tab);i=(i+(e.key==='ArrowRight'?1:-1)+4)%4;EE.tab=ts[i];renderEE();$('tab-'+EE.tab).focus()}
 });
+/* ---------- connection to the Etihad Everywhere Console ----------
+   When this app runs inside the console, the console is the source of truth: it sends the customer, consent,
+   approved offers, alerts, the stop switch and the reference values; the app reports every customer action back.
+   On its own (standalone link) the app keeps working with its local demo data. */
+var HOST=false,KILL=false,PALETTE=['#B0283F','#0F766E','#C2410C','#1D4ED8','#6D28D9','#334155','#047857','#9D174D','#A16207','#0369A1'];
+function emit(kind,data){if(!HOST)return;try{window.parent.postMessage({type:'ee-event',kind:kind,ref:ME.ref||null,data:data||{}},'*')}catch(e){}}
+function hashN(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return h}
+function applyState(s){
+  HOST=true;
+  if(s.customer)ME=Object.assign({claimed:false},s.customer);
+  if(s.consent)CONSENT=Object.assign({},s.consent);
+  CONFIRMED=s.confirmed?{at:s.confirmedAt||'',choices:CONSENT}:null;
+  if(s.assumptions)A=Object.assign(A,s.assumptions);
+  KILL=!!s.kill;
+  if(Array.isArray(s.offers)&&s.offers.length){OFFERS=s.offers.map(function(o){var h=hashN(o.id+o.name);var known={Fraij:120,'Ikura Jordan':340,'Souq Fann':450};
+    return {id:o.id,name:o.name,type:o.type==='cashback'?'cashback':'discount',rate:o.rate||0,dist:known[o.name]||(150+h%1650),color:PALETTE[h%PALETTE.length],cat:o.type==='cashback'?'Partner cashback':'Card discount'}});
+    OFFERS.forEach(function(o){if(BEARING[o.id]==null)BEARING[o.id]=hashN(o.id)%360});}
+  if(Array.isArray(s.alerts)){var old={};INBOX.forEach(function(n){old[n.id]=n});INBOX=s.alerts.map(function(n){var o=old[n.id];return Object.assign({},n,{dismissed:n.dismissed||(o&&o.dismissed),showWhy:o&&o.showWhy})})}
+  $('plan-name').textContent=ME.plan;
+  var pr=document.querySelector('.proto');if(pr)pr.textContent='Connected to the Etihad Everywhere Console · '+(ME.ref||'')+' · synthetic data';
+  $('bell-dot').hidden=!INBOX.some(function(n){return !n.dismissed});
+  if(!$('ee').hidden)renderEE();
+  if(s.open&&$('ee').hidden)openEE(s.open);
+}
+window.addEventListener('message',function(e){
+  if(e.source!==window.parent||!e.data||e.data.type!=='ee-state')return;
+  applyState(e.data);
+});
 renderHub();
+if(window.parent!==window){try{window.parent.postMessage({type:'ee-ready'},'*')}catch(e){}}
 if(location.hash==='#etihad-everywhere')openEE('you');
 </script>

@@ -249,6 +249,12 @@ dialog.confirm .row{justify-content:flex-end;margin-top:var(--s4)}
 @keyframes orbit{to{transform:rotate(360deg)}}
 @keyframes shim{to{background-position:-200% 0}}
 
+/* connected customer app */
+.app-grid{display:grid;grid-template-columns:400px minmax(0,1fr);gap:var(--s4);align-items:start}
+.app-phone{position:sticky;top:76px;display:grid;gap:var(--s2)}
+.app-phone iframe{width:100%;height:min(800px,calc(100vh - 110px));min-height:620px;border:0;border-radius:32px;background:#F2F2F4;box-shadow:0 0 0 8px #0B090B,0 24px 60px rgb(0 0 0 / .45)}
+.app-side{display:grid;gap:var(--s4);min-width:0}
+@media (max-width:980px){.app-grid{grid-template-columns:1fr}.app-phone{position:static}.app-phone iframe{height:720px}}
 /* no descriptive copy on screen: explanatory lines are removed, data, status and results stay */
 .view .card>p.muted.sm:not([id]),.view .card>p.sm:not([id]),.view .card>h4.sm,.view .secure,.view .card.flat>p.sm{display:none}
 
@@ -436,7 +442,7 @@ var ERR_AR={not_available:'Claude غير متاح في هذا العرض',budget
 function errAr(e){return ERR_AR[e&&e.code]||('تعذّر ('+(e&&e.code)+')')}
 
 /* ---------- live data state ---------- */
-var S={raw:null,q:null,dec:[],byRef:{},source:'synthetic',withdrawn:0,catalog:null,consents:{},evalRes:null,pilot:null,
+var S={raw:null,q:null,dec:[],byRef:{},source:'synthetic',withdrawn:0,catalog:null,consents:{},evalRes:null,pilot:null,accounts:{},appEvents:[],appAlerts:{},
   state:{mode:'analysis_only',kill:false,rollout:0},sendgate:{optin:false,channel:false,frequency:false,suppression:false,messageLog:false},
   policies:{},plan:{},outbox:[],complaints:[],offerLog:[],monitor:null,runs:[],audit:[],loaded:false,stale:false};
 var CAN={write:false,owner:false,id:null},db=null,user=null,sample=null,downloads=null;
@@ -445,7 +451,10 @@ function runPipeline(raw,source){
   S.raw=raw;S.source=source||S.source;S.q=asQualify(raw);S.byRef={};
   /* policy 1: a customer who withdrew analysis consent in the consent centre leaves the pipeline at once (fail closed) */
   S.withdrawn=S.q.clean.filter(function(c){return !consentOf(c.customer_ref).analysis}).length;
-  S.dec=S.q.clean.filter(function(c){return consentOf(c.customer_ref).analysis}).map(function(c){var d=asDecide(c),rf=refFor(c.month);
+  S.dec=S.q.clean.filter(function(c){return consentOf(c.customer_ref).analysis}).map(function(c){
+    /* the customer's plan as changed in the app overrides the export, so decisions follow what the customer did */
+    var ov=(S.accounts||{})[c.customer_ref];if(ov&&ov.plan&&PLANS[ov.plan]&&ov.plan!==c.plan)c=Object.assign({},c,{plan:ov.plan});
+    var d=asDecide(c),rf=refFor(c.month);
     var row={ref:c.customer_ref,rank:c.rank,plan:c.plan,best:d.best,act:d.act,hold:d.hold,gain:r2(d.gain),cashback:r2(d.m.cardCb),next:r2(d.m.nextGain),missed:r2(d.m.discMissed+d.m.partnerCb),vault:d.vault,vaultBal:c.vault_balance,curNet:d.m.cur.net,bestNet:d.m.rows.filter(function(r){return r.plan===d.best})[0].net,ref_version:rf?rf.id:'',c:c,m:d.m};
     S.byRef[row.ref]=row;return row});
 }
@@ -565,6 +574,9 @@ function subscribe(){
   doc('monitor/eval',function(d){S.evalRes=d});
   doc('ops/catalog',function(d){S.catalog=(d&&d.items)||null});
   doc('ops/consents',function(d){S.consents=(d&&d.map)||{};if(S.raw)runPipeline(S.raw)});
+  doc('ops/accounts',function(d){S.accounts=(d&&d.map)||{};if(S.raw)runPipeline(S.raw)});
+  doc('ops/appEvents',function(d){S.appEvents=(d&&d.items)||[]});
+  doc('ops/appAlerts',function(d){S.appAlerts=(d&&d.map)||{}});
   doc('ops/complaints',function(d){S.complaints=(d&&d.items)||[]});
   doc('ops/offers',function(d){S.offerLog=(d&&d.items)||[]});
   db.collection('outbox').orderBy('at','desc').limit(20).onSnapshot(function(q){done();S.outbox=q.docs.map(function(x){var o=x.data();o.id=x.id;return o});rerender()},fail);
@@ -701,7 +713,7 @@ VIEWS.overview=function(){
    '<div class="stage '+stageCls(S.state.mode==='live'&&g.pass,!S.state.kill)+'"><b>Perform</b><span class="v">'+fmt(sent)+'</span><small>'+(S.state.mode==='live'?'رسالة أُرسلت':'تحليل داخلي فقط')+' · '+fmt(held)+' بانتظار البوابة</small></div>'+
    '<div class="stage '+stageCls(mon&&mon.level==='ok',mon&&mon.level==='warn')+'"><b>Perfect</b><span class="v">'+(mon?esc(mon.levelAr):'—')+'</span><small>'+(mon?'آخر فحص '+esc(String(mon.at).slice(0,16).replace('T',' ')):'لم يُشغَّل فحص المراقبة بعد')+'</small></div>'+
   '</div>'+
-  '<div class="kpis">'+kpi(fmt(t.cb,2),'كاش باك رجع للعملاء (د.أ)')+kpi(fmt(t.missed,2),'فات العملاء من التجار (د.أ)')+kpi('+'+fmt(t.upRev,2),'اشتراكات من الترقيات (د.أ/شهر)')+kpi(fmt(Math.abs(t.downRev),2),'ترجع للعملاء بباقات أوفر (د.أ/شهر)')+kpi(fmt(t.vault),'تذكير بسحب الـ vault')+kpi(fmt(S.complaints.length),'شكوى مسجّلة')+'</div>'+
+  '<div class="kpis">'+kpi(fmt(t.cb,2),'كاش باك رجع للعملاء (د.أ)')+kpi(fmt(t.missed,2),'فات العملاء من التجار (د.أ)')+kpi('+'+fmt(t.upRev,2),'اشتراكات من الترقيات (د.أ/شهر)')+kpi(fmt(Math.abs(t.downRev),2),'ترجع للعملاء بباقات أوفر (د.أ/شهر)')+kpi(fmt(t.vault),'تذكير بسحب الـ vault')+kpi(fmt(S.complaints.length),'شكوى مسجّلة')+kpi(fmt((S.appEvents||[]).length),'إجراء من تطبيق العملاء')+'</div>'+
   '<div class="g2"><div class="card"><h2>بوابة الإرسال (Compliance Guard)</h2>'+checksList(g.checks)+'</div>'+
   '<div class="card"><h2>خطة 90 يوماً</h2><p>'+(day<1?'تبدأ في 1 تشرين الثاني 2026.':day>90?'انتهت الأيام التسعون.':'اليوم <b class="num">'+day+'</b> من 90. البوابة القادمة: '+esc((ACC_GATES.filter(function(x){return x[0]>=day})[0]||[0,'—'])[1])+'.')+'</p>'+
   '<p class="muted sm">لا ننتقل لعملاء حقيقيين قبل اعتماد السياسات 1 و3 و4 و5 و6 وتأكيد الافتراضات وبناء حقول الإرسال الخمسة.</p><div class="row"><a class="btn" href="#plan">افتح الخطة</a><a class="btn" href="#copilot">اسأل وكيل العمليات</a></div></div></div>';
@@ -823,14 +835,15 @@ VIEWS.monitor=function(){
   (S.complaints.length?'<div class="tbl"><table><thead><tr><th scope="col">الوقت</th><th scope="col">العميل</th><th scope="col">النوع</th><th scope="col">ملاحظة</th></tr></thead><tbody>'+S.complaints.slice(-15).reverse().map(function(c){return '<tr><td class="data ltr">'+esc(String(c.at).slice(0,16).replace('T',' '))+'</td><td class="data ltr">'+esc(c.ref)+'</td><td>'+esc(c.typeAr)+'</td><td>'+esc(c.note)+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="empty">لا شكاوى مسجّلة.</p>')+'</div>';
 };
 VIEWS.merchants=function(){
-  var by={};S.offerLog.forEach(function(e){var k=e.mid;by[k]=by[k]||{name:e.mname,n:0,notif:0,inApp:0};by[k].n++;if(e.send)by[k].notif++;else if(e.inApp)by[k].inApp++});
+  var by={};S.offerLog.forEach(function(e){var k=e.mid;by[k]=by[k]||{name:e.mname,n:0,notif:0,inApp:0,views:0};by[k].n++;if(e.send)by[k].notif++;else if(e.inApp)by[k].inApp++});
+  (S.appEvents||[]).forEach(function(x){if((x.kind==='offer-view'||x.kind==='offer-calc')&&x.data&&x.data.id){var k=x.data.id;by[k]=by[k]||{name:x.data.name||k,n:0,notif:0,inApp:0,views:0};by[k].views++}});
   var ks=Object.keys(by);
   var cat=catalogItems();
   return head('Merchants','التجار والعروض','الوجه الثاني للمنصة. التاجر لا يكتب نصاً يصل للعميل مباشرة: يُتحقق من هويته (اعرف عميلك للتجار)، ويُفحص نص عرضه بحثاً عن تعليمات مخفية وبيانات شخصية، ويعتمده موظف غير من أدخله (السياسة 10). والتاجر يرى أرقاماً مجمّعة فقط، ولا رقم لمجموعة أقل من 20 عميلاً (السياسة 2).')+
   '<div class="card"><h2>كتالوج العروض</h2>'+(S.catalog?'':'<p class="muted sm">الكتالوج يعمل الآن بعينة التجربة المدمجة. أول عرض يضيفه محرر ينقل الكتالوج إلى قاعدة البيانات.</p>')+
   '<div class="tbl"><table><thead><tr><th scope="col">التاجر</th><th scope="col">النوع</th><th scope="col">النسبة</th><th scope="col">التحقق (KYB)</th><th scope="col">الحالة</th><th scope="col"></th></tr></thead><tbody>'+cat.map(function(m,i){return '<tr><td>'+esc(m.name)+(m.flags&&m.flags.length?'<br><small class="muted">'+esc(m.flags.join(' · '))+'</small>':'')+'</td><td>'+TYPES[m.type]+'</td><td class="n">'+(m.rate?m.rate+'%':'—')+'</td><td>'+pillFor(m.kyb,'تم','لا')+'</td><td>'+(m.status==='approved'?'<span class="pill p-ok">معتمد</span>':m.status==='withdrawn'?'<span class="pill p-bad">مسحوب</span>':'<span class="pill p-n">مسودة</span>')+'</td><td><div class="row">'+(m.status!=='approved'?'<button class="btn" data-act="offer-approve" data-i="'+i+'" aria-label="اعتمد عرض '+esc(m.name)+'"'+dis()+'>اعتمد</button>':'<button class="btn" data-act="offer-withdraw" data-i="'+i+'" aria-label="اسحب عرض '+esc(m.name)+'"'+dis()+'>اسحب</button>')+(m.kyb?'':'<button class="btn" data-act="offer-kyb" data-i="'+i+'" aria-label="سجّل التحقق من '+esc(m.name)+'"'+dis()+'>سجّل التحقق</button>')+'</div></td></tr>'}).join('')+'</tbody></table></div>'+
   '<h4 class="sm">أضف عرض تاجر</h4><div class="form"><div class="field"><label for="m-name">اسم التاجر</label><input id="m-name"></div><div class="field"><label for="m-type">النوع</label><select id="m-type">'+Object.keys(TYPES).map(function(k){return '<option value="'+k+'">'+TYPES[k]+'</option>'}).join('')+'</select></div><div class="field"><label for="m-rate">النسبة %</label><input id="m-rate" type="number" min="0" max="60" value="10"></div><div class="field" style="grid-column:1/-1"><label for="m-text">نص العرض من التاجر (يُعامل كبيانات لا تعليمات)</label><textarea id="m-text" rows="2"></textarea></div><div class="row"><button class="btn primary" data-act="offer-add"'+dis()+'>أضف كمسودة</button></div></div></div>'+
-  '<div class="card"><h2>تقرير التاجر المجمّع</h2>'+(ks.length?'<div class="tbl"><table><thead><tr><th scope="col">التاجر</th><th scope="col">زيارات في النطاق</th><th scope="col">إشعارات</th><th scope="col">«قريب مني»</th></tr></thead><tbody>'+ks.map(function(k){var x=by[k];function kk(v){return x.n<20?'<span class="pill p-n">أقل من 20</span>':fmt(v)}return '<tr><td>'+esc(x.name)+'</td><td class="n">'+kk(x.n)+'</td><td class="n">'+kk(x.notif)+'</td><td class="n">'+kk(x.inApp)+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="empty">لا أحداث مسجّلة بعد. سجّل أحداثاً من «Offers» لتظهر هنا مجمّعة.</p>')+'</div>';
+  '<div class="card"><h2>تقرير التاجر المجمّع</h2>'+(ks.length?'<div class="tbl"><table><thead><tr><th scope="col">التاجر</th><th scope="col">زيارات في النطاق</th><th scope="col">إشعارات</th><th scope="col">«قريب مني»</th><th scope="col">فُتح في التطبيق</th></tr></thead><tbody>'+ks.map(function(k){var x=by[k];function kk(v){return x.n<20?'<span class="pill p-n">أقل من 20</span>':fmt(v)}return '<tr><td>'+esc(x.name)+'</td><td class="n">'+kk(x.n)+'</td><td class="n">'+kk(x.notif)+'</td><td class="n">'+kk(x.inApp)+'</td><td class="n">'+(x.views<20?'<span class="pill p-n">أقل من 20</span>':fmt(x.views))+'</td></tr>'}).join('')+'</tbody></table></div>':'<p class="empty">لا أحداث مسجّلة بعد. سجّل أحداثاً من «Offers» لتظهر هنا مجمّعة.</p>')+'</div>';
 };
 var ACC_GATES=[[14,'بوابة الاستمرار أو التحويل'],[29,'بدء التجربة الداخلية'],[36,'أسبوع Demo Day'],[60,'بوابة Go/No-Go للعملاء'],[90,'قرار التوسع']];
 VIEWS.plan=function(){
@@ -849,16 +862,35 @@ VIEWS.copilot=function(){
 var custRef=null;
 VIEWS.customer=function(){
   var refs=S.q.clean.map(function(c){return c.customer_ref});if(!custRef||refs.indexOf(custRef)<0)custRef=refs[0];
-  var cs=consentOf(custRef),d=S.byRef[custRef];
-  var inbox=[];S.outbox.forEach(function(b){(b.items||[]).forEach(function(it){if(it.ref===custRef&&it.status==='sent')inbox.push(it)})});
-  return head('Customer App','تطبيق العميل (محاكاة)','ما يراه العميل داخل تطبيق بنك الاتحاد: ملخصه الشهري، رسائله، العروض القريبة، ومركز الموافقات. في النظام الحقيقي العميل يضغط بنفسه؛ هنا يحاكيها محرر النظام، وكل تغيير يدخل البوابات فوراً.')+
-  '<div class="card"><div class="form"><div class="field"><label for="cu-ref">العميل</label><select id="cu-ref">'+refs.slice(0,80).map(function(r){return '<option value="'+r+'"'+(r===custRef?' selected':'')+'>'+r+'</option>'}).join('')+'</select></div></div></div>'+
-  '<div class="g2"><div class="card"><h2>مركز الموافقات</h2><ul class="checks">'+[['analysis','تحليل الإنفاق لتخصيص الاقتراحات'],['location','استخدام الموقع لعروض قريبة'],['marketing','رسائل تسويقية']].map(function(x){return '<li>'+pillFor(cs[x[0]],'مفعّلة','متوقفة')+'<span>'+x[1]+' <button class="btn" data-act="consent" data-k="'+x[0]+'"'+dis()+'>'+(cs[x[0]]?'أوقف':'فعّل')+'</button></span></li>'}).join('')+'</ul>'+
-  '<p class="muted sm">إيقاف أي موافقة بنقرة واحدة ويُطبَّق فوراً (السياسة 1). إيقاف التحليل يُخرج العميل من قرارات التوفير كلياً.</p></div>'+
-  '<div class="card"><h2>ملخصي الشهري</h2>'+(d?'<div class="msg"><span class="t">رجع لك '+fmt(d.cashback,2)+' د.أ كاش باك</span><span>فاتك '+fmt(d.missed,2)+' د.أ من خصومات المتاجر المميزة'+(d.rank>1?'، ولو وصلت Rank '+(d.rank-1)+' يرجع لك '+fmt(d.next,2)+' د.أ إضافية':'')+'.</span>'+(d.vault?'<span>في رصيد الـ vault '+fmt(d.vaultBal,2)+' د.أ؛ اسحبها من التطبيق.</span>':'')+'<span class="w">'+(d.act==='stay'?'باقتك الحالية مناسبة لاستخدامك.':'اقتراح: باقة '+d.best+' ('+(d.act==='upgrade'?'تزيد قيمتها':'توفّر عليك')+' '+fmt(Math.abs(d.gain),2)+' د.أ شهرياً). القرار لك.')+'</span></div>':'<p class="empty">أوقف العميل موافقة التحليل، فلا ملخص ولا اقتراحات.</p>')+'</div></div>'+
-  '<div class="g2"><div class="card"><h2>رسائلي</h2>'+(inbox.length?inbox.map(function(it){return '<div class="msg"><span class="t">'+esc(it.title)+'</span><span>'+esc(it.body)+'</span><span class="w">لماذا وصلتني؟ '+esc(it.why)+'</span><div class="row"><button class="btn" data-act="object" data-ref="'+esc(it.ref)+'"'+dis()+'>اعترض على هذا الاقتراح</button></div></div>'}).join(''):'<p class="empty">لا رسائل. الرسائل تصل فقط بعد فتح بوابة الإرسال.</p>')+'</div>'+
-  '<div class="card"><h2>قريب مني</h2><p class="muted sm">العروض المعتمدة تظهر هنا دائماً، حتى بلا إشعار، والخصم يُطبَّق عند الدفع بالبطاقة.</p><ul class="checks">'+activeCatalog().slice(0,8).map(function(m){return '<li><span class="pill p-n">'+TYPES[m.type]+'</span><span>'+esc(m.name)+(m.rate?' · '+m.rate+'%':'')+'</span></li>'}).join('')+'</ul></div></div>';
+  return head('Customer App','تطبيق العميل المتصل')+
+  '<div class="card"><form class="form"><div class="field"><label for="cu-ref">العميل</label><select id="cu-ref">'+refs.slice(0,80).map(function(r){return '<option value="'+r+'"'+(r===custRef?' selected':'')+'>'+r+'</option>'}).join('')+'</select></div></form></div>'+
+  '<div class="app-grid"><div class="app-phone"><iframe id="app-frame" title="تطبيق العميل: Etihad Everywhere" loading="eager"></iframe><p class="empty" id="app-load" role="status">يحمّل التطبيق…</p></div><div class="app-side" id="cust-side">'+customerSide()+'</div></div>';
 };
+function customerSide(){
+  var cs=consentOf(custRef),d=S.byRef[custRef],acc=(S.accounts||{})[custRef]||{},row=S.q.clean.filter(function(c){return c.customer_ref===custRef})[0]||{};
+  var ev=(S.appEvents||[]).filter(function(x){return x.ref===custRef}).slice(-14).reverse();
+  var alerts=((S.appAlerts||{})[custRef]||[]);
+  var cat=activeCatalog();
+  return '<div class="card"><h2>حالة العميل الآن</h2><ul class="checks">'+
+    '<li>'+pillFor(!!(S.consents[custRef]||{}).confirmed,'أكّد','لم يؤكد')+'<span>شاشة الموافقة في التطبيق</span></li>'+
+    [['analysis','تحليل الإنفاق'],['location','الموقع'],['marketing','العروض والتنبيهات']].map(function(x){return '<li>'+pillFor(cs[x[0]],'مفعّلة','متوقفة')+'<span>'+x[1]+' <button type="button" class="btn" data-act="consent" data-k="'+x[0]+'" aria-label="'+(cs[x[0]]?'أوقف':'فعّل')+' '+x[1]+' للعميل"'+dis()+'>'+(cs[x[0]]?'أوقف':'فعّل')+'</button></span></li>'}).join('')+'</ul>'+
+    '<div class="kpis">'+kpi(esc(acc.plan||row.plan||'—'),'الباقة الحالية'+(acc.plan&&acc.plan!==row.plan?' (غيّرها العميل)':''))+kpi(d?fmt(d.cashback,2):'—','كاش باك الشهر (د.أ)')+kpi(acc.vaultClaimed?'0.00':fmt(row.vault_balance||0,2),'رصيد الـ vault'+(acc.vaultClaimed?' (سحبه)':''))+kpi(d?ACT_AR[d.act]+(d.act!=='stay'?' ← '+d.best:''):'خارج التحليل','قرار الوكيل الآن')+'</div></div>'+
+  '<div class="card"><h2>تحكّم من الكونسول</h2>'+
+    '<form class="form"><div class="field"><label for="al-offer">أرسل تنبيه موقع لهذا العميل</label><select id="al-offer">'+cat.map(function(m){return '<option value="'+m.id+'">'+esc(m.name)+' · '+(m.rate?m.rate+'%':TYPES[m.type])+'</option>'}).join('')+'</select></div>'+
+    '<div class="row"><button type="button" class="btn primary" data-act="send-alert"'+dis()+'>أرسل التنبيه للتطبيق</button><button type="button" class="btn" data-act="reset-onboarding"'+dis()+'>أعد شاشة الموافقة</button></div></form>'+
+    (S.state.kill?'<div class="note bad">زر الإيقاف مفعّل: التطبيق يعرض «التنبيهات متوقفة من البنك».</div>':'')+
+    (alerts.length?'<ul class="checks">'+alerts.slice(-4).reverse().map(function(a){return '<li><span class="pill '+(a.dismissed?'p-n':'p-ok')+'">'+(a.dismissed?'رفضه':'وصل')+'</span><span>'+esc(a.title)+' <span class="muted sm">'+esc(String(a.at).slice(11,16))+'</span></span></li>'}).join('')+'</ul>':'')+'</div>'+
+  '<div class="card"><h2>نشاط العميل في التطبيق</h2>'+(ev.length?'<ul class="checks">'+ev.map(function(x){return '<li><span class="pill p-n">'+esc(String(x.at).slice(11,16))+'</span><span>'+esc(eventText(x))+'</span></li>'}).join('')+'</ul>':'<p class="empty">لا نشاط بعد. افتح أيقونة Etihad Everywhere في الهاتف.</p>')+'</div>';
+}
+var EV_AR={'consent':'غيّر الموافقات','offer-view':'فتح متجراً على الخريطة','offer-calc':'حسب ما يربحه عند متجر','plan-switch':'غيّر باقته','vault-claim':'سحب رصيد الـ vault','alert-dismiss':'رفض تنبيهاً','alert-undismiss':'تراجع عن رفض تنبيه','alert-why':'سأل «لماذا وصلني؟»','keep-plan':'أبقى باقته (لا اقتراح 3 أشهر)','location':'الموقع','open':'فتح Etihad Everywhere'};
+function eventText(x){var d=x.data||{},t=EV_AR[x.kind]||x.kind;
+  if(x.kind==='consent')return t+': تحليل '+(d.consent&&d.consent.analysis?'✓':'✗')+' · موقع '+(d.consent&&d.consent.location?'✓':'✗')+' · عروض '+(d.consent&&d.consent.marketing?'✓':'✗')+(d.confirmed?' · مؤكد':'')+(d.source?' ('+d.source+')':'');
+  if(x.kind==='plan-switch')return t+': '+d.from+' ← '+d.to+(d.undo?' (تراجع)':'');
+  if(x.kind==='vault-claim')return t+': '+fmt(d.amount,2)+' د.أ';
+  if(x.kind==='location')return t+': '+({live:'موقع حقيقي ±'+d.accuracy+' م',sample:'موقع تجريبي',refused:'رفض الجهاز'}[d.status]||d.status);
+  if(d.name||d.title)return t+': '+(d.name||d.title);
+  return t;
+}
 
 /* ---------- pilot KPIs: notification events from the employee pilot ---------- */
 var PILOT_COLS=['event_id','user_ref','date','time','merchant_id','merchant_name','category','offer_type','tapped','purchased','amount_jod','discount_jod','cashback_jod','bundle_signup'];
@@ -959,6 +991,8 @@ function banners(){
 }
 function render(){
   if(!S.q)return;
+  /* the live app keeps running: on the Customer App screen only the side panel refreshes, then the app gets the new state */
+  if(current==='customer'&&!render.entering&&$('app-frame')&&$('cust-side')){var fo=document.activeElement&&document.activeElement.id;$('cust-side').innerHTML=customerSide();if(fo&&$(fo))try{$(fo).focus()}catch(e){}pushApp();renderStatus();return}
   var v=$('view'),fn=VIEWS[current]||VIEWS.overview;
   var keep={};['f-q','chat-in','k-reason','c-ref','c-note'].forEach(function(id){var e=$(id);if(e)keep[id]=e.value});
   var focus=document.activeElement&&document.activeElement.id;
@@ -968,6 +1002,7 @@ function render(){
   var kr=$('k-reason');if(kr&&!kr.closest('form')){var kf=document.createElement('form');kr.closest('.field').replaceWith(kf);kf.appendChild(document.createElement('div')).className='field';kf.firstChild.innerHTML='<label for="k-reason">السبب</label>';kf.firstChild.appendChild(kr)}
   if(render.entering){render.entering=false;v.classList.remove('enter');void v.offsetWidth;v.classList.add('enter');[].forEach.call(v.children,function(c,i){c.style.setProperty('--i',Math.min(i,8))})}
   animateNumbers();
+  if(current==='customer')mountApp();
   Object.keys(keep).forEach(function(id){var e=$(id);if(e)e.value=keep[id]});
   if($('f-act'))$('f-act').value=decFilter.act;
   if(focus&&$(focus)){try{$(focus).focus()}catch(e){}}
@@ -1163,6 +1198,65 @@ document.addEventListener('input',function(e){if(e.target.id==='f-q'){decFilter.
 document.addEventListener('keydown',function(e){if(e.target.id==='chat-in'&&e.key==='Enter'&&!e.shiftKey){e.preventDefault();chatSend()}});
 window.addEventListener('hashchange',route);
 
+/* ---------- the live mobile app, connected to this console ----------
+   The real app (app/etihad-everywhere-app.html, published beside this page as app.html) runs in a frame.
+   Console → app: the customer's data and current plan, consent, approved offers, bank alerts, sent messages, the stop switch, reference values.
+   App → console: consent, location result (never coordinates), shops viewed, calculator use, plan switch, vault claim, alert feedback. */
+var APP={html:null,ready:false,loading:false};
+function appCustomerState(ref){
+  ref=ref||custRef;var row=S.q.clean.filter(function(c){return c.customer_ref===ref})[0];if(!row)return null;
+  var acc=(S.accounts||{})[ref]||{},cs=consentOf(ref),cons=(S.consents||{})[ref]||{},alerts=[];
+  S.outbox.forEach(function(b){(b.items||[]).forEach(function(it){if(it.ref===ref&&it.status==='sent')alerts.push({id:'o-'+b.id,title:it.title,body:it.body,why:it.why,offer:null})})});
+  ((S.appAlerts||{})[ref]||[]).forEach(function(a){alerts.push({id:a.id,title:a.title,body:a.body,why:a.why,offer:a.offer,dismissed:!!a.dismissed})});
+  return {type:'ee-state',
+    customer:{ref:ref,name:'Customer '+ref.slice(-4),rank:row.rank,plan:acc.plan||row.plan,credit:row.credit_spend,debit:row.debit_spend,discSpend:row.discount_store_spend,cb5Spend:row.cb5_store_spend,atm:row.atm_other_bank,careem:row.careem_paid,stock:row.stock_fees,vault:acc.vaultClaimed?0:row.vault_balance,claimed:!!acc.vaultClaimed},
+    consent:{analysis:cs.analysis,location:cs.location,marketing:cs.marketing},confirmed:!!cons.confirmed,confirmedAt:cons.confirmedAt||'',
+    assumptions:{atm_fee:REF.assumptions.atm_fee,point_value:REF.assumptions.point_value,avg_discount_pct:REF.assumptions.avg_discount_pct,min_gain:REF.assumptions.min_gain,cb_rate:REF.merchants.cb_rate},
+    kill:!!S.state.kill,
+    offers:activeCatalog().filter(function(m){return m.type==='cashback'||(m.type==='discount'&&m.rate>0)}).map(function(m){return {id:m.id,name:m.name,type:m.type==='cashback'?'cashback':'discount',rate:m.rate}}),
+    alerts:alerts};
+}
+function pushApp(){var f=$('app-frame');if(!f||!APP.ready||!f.contentWindow)return;var st=appCustomerState();if(st)try{f.contentWindow.postMessage(st,'*')}catch(e){}}
+function mountApp(){
+  var f=$('app-frame');if(!f||f.srcdoc)return;APP.ready=false;
+  function set(h){APP.html=h;f.srcdoc=h}
+  if(APP.html){set(APP.html);return}
+  if(APP.loading)return;APP.loading=true;
+  (function tryNext(list){if(!list.length){APP.loading=false;var l=$('app-load');if(l){l.textContent='تعذّر تحميل التطبيق. أعد فتح الصفحة.';l.setAttribute('role','alert')}return}
+    fetch(list[0]).then(function(r){if(!r.ok)throw 0;return r.text()}).then(function(h){APP.loading=false;if(!/^\s*<!doctype/i.test(h))h='<!doctype html>'+h;/* standards mode, not quirks */var ff=$('app-frame');if(ff){APP.html=h;ff.srcdoc=h}},function(){tryNext(list.slice(1))})})(['app.html','../app/etihad-everywhere-app.html']);
+}
+var quietWarned=false;
+function saveQuiet(path,data){if(!db||!CAN.write){if(!quietWarned){quietWarned=true;toast('عرض فقط: يتغيّر التطبيق أمامك لكن لا يُحفظ في النظام.')}return Promise.resolve()}return save(path,data).catch(function(){})}
+function onAppEvent(m){
+  var ref=m.ref||custRef,d=m.data||{},ev={at:nowISO(),ref:ref,kind:String(m.kind).slice(0,24),data:d};
+  S.appEvents=(S.appEvents||[]).concat([ev]).slice(-500);
+  var acc=Object.assign({},S.accounts||{}),a=Object.assign({},acc[ref]||{}),jobs=[];
+  if(m.kind==='consent'&&d.consent){var map=Object.assign({},S.consents);map[ref]=Object.assign({},map[ref]||{},{analysis:!!d.consent.analysis,location:!!d.consent.location,marketing:!!d.consent.marketing,confirmed:!!d.confirmed,confirmedAt:d.confirmed?((map[ref]||{}).confirmedAt||nowISO()):'',at:nowISO()});S.consents=map;jobs.push(['ops/consents',{map:map}])}
+  if(m.kind==='plan-switch'&&PLANS[d.to]){a.plan=d.to;a.planAt=nowISO();acc[ref]=a;S.accounts=acc;jobs.push(['ops/accounts',{map:acc}])}
+  if(m.kind==='vault-claim'){a.vaultClaimed=true;a.vaultAmount=+d.amount||0;a.vaultAt=nowISO();acc[ref]=a;S.accounts=acc;jobs.push(['ops/accounts',{map:acc}])}
+  if(m.kind==='keep-plan'){var t=new Date();t.setMonth(t.getMonth()+3);a.noPlanOfferUntil=t.toISOString().slice(0,10);acc[ref]=a;S.accounts=acc;jobs.push(['ops/accounts',{map:acc}])}
+  if((m.kind==='alert-dismiss'||m.kind==='alert-undismiss')&&d.id){var am=Object.assign({},S.appAlerts||{}),list=(am[ref]||[]).map(function(x){return x.id===d.id?Object.assign({},x,{dismissed:m.kind==='alert-dismiss'}):x});am[ref]=list;S.appAlerts=am;jobs.push(['ops/appAlerts',{map:am}])}
+  jobs.push(['ops/appEvents',{items:S.appEvents}]);
+  if(S.raw)runPipeline(S.raw);
+  rerender();
+  jobs.reduce(function(p,j){return p.then(function(){return saveQuiet(j[0],j[1])})},Promise.resolve()).then(function(){if(['consent','plan-switch','vault-claim'].indexOf(m.kind)>=0&&db&&CAN.write)return audit('من تطبيق العميل',ref+' · '+eventText(ev))});
+}
+window.addEventListener('message',function(e){
+  var f=$('app-frame');if(!f||e.source!==f.contentWindow||!e.data)return;
+  if(e.data.type==='ee-ready'){APP.ready=true;var l=$('app-load');if(l)l.hidden=true;pushApp();return}
+  if(e.data.type==='ee-event')onAppEvent(e.data);
+});
+function sendAppAlert(){
+  var m=activeCatalog().filter(function(x){return x.id===$('al-offer').value})[0];if(!m)return;
+  var cs=consentOf(custRef),today=todayISO(),sent=((S.appAlerts||{})[custRef]||[]).filter(function(x){return String(x.at).slice(0,10)===today}).length;
+  if(!cs.marketing){toast('العميل أوقف العروض والتنبيهات؛ لا يُرسل شيء.');return}
+  var od=offerDecision({ref:custRef,merchant:m.id,hour:new Date().getHours(),sentToday:sent,locConsent:cs.location});
+  if(!od.send){var why=(od.checks||[]).filter(function(c){return !c.ok})[0];toast('لم يُرسل: '+(why?why.t:'شرط غير متحقق')+'.');return}
+  var al={id:'a'+Date.now().toString(36),offer:m.id,at:nowISO(),title:m.name+' is near you',body:(m.type==='cashback'?m.rate+'% cashback':m.rate+'% off')+' when you pay with your Bank al Etihad card, and your rank cashback still applies.',why:'Sent by the bank because you are near a partner and allowed alerts. At most 2 a day, never 22:00–08:00.'};
+  var am=Object.assign({},S.appAlerts||{});am[custRef]=(am[custRef]||[]).concat([al]).slice(-20);
+  save('ops/appAlerts',{map:am}).then(function(){return audit('تنبيه للتطبيق',custRef+' · '+m.name)}).then(function(){toast('وصل التنبيه لتطبيق العميل.')},function(){});
+}
+
 /* ---------- command palette: jump to any module or customer (Ctrl/Cmd+K, or the header button) ---------- */
 var pal={items:[],sel:0,last:null};
 function palItems(q){
@@ -1211,6 +1305,9 @@ function runTests(){
   t('C20','وكيل العروض يستخدم العروض المعتمدة فقط',function(){var keep=S.catalog;S.catalog=[{id:'Z1',name:'تاجر تجريبي',type:'discount',rate:10,kyb:true,status:'draft'}];var r=offerDecision({ref:S.dec[0].ref,merchant:'Z1',hour:13,sentToday:0,locConsent:true}).send;S.catalog=keep;return !r});
   t('C21','تقييم الكتابة: القوالب الثابتة تجتاز كل الحالات بما فيها المدسوسة',function(){var cs=evalCases();return cs.length===14&&cs.every(function(c){return gradeCase(c,templateMsg(c.d)).length===0})||('حالات '+cs.length)});
   t('C22','مؤشرات التجربة: التنظيف يزيل المكرر والمعرّف الشبيه بالهاتف والأحرف المخفية',function(){var q=pilotClean(pilotSynthetic());return q.rep.dup>=1&&q.rep.ref>=1&&q.rep.hidden>=1&&q.clean.every(function(e){return stripHidden(e.merchant_name)===e.merchant_name})});
+  t('C23','التطبيق يستلم العروض المعتمدة فقط وحالة زر الإيقاف',function(){var keep=S.catalog,kk=S.state.kill;S.catalog=[{id:'Z1',name:'معتمد',type:'discount',rate:10,kyb:true,status:'approved'},{id:'Z2',name:'مسودة',type:'discount',rate:20,kyb:true,status:'draft'},{id:'Z3',name:'مسحوب',type:'cashback',rate:5,kyb:true,status:'withdrawn'}];S.state.kill=true;
+    var st=appCustomerState(S.q.clean[0].customer_ref);S.catalog=keep;S.state.kill=kk;return st&&st.kill===true&&st.offers.length===1&&st.offers[0].id==='Z1'||('عروض: '+(st&&st.offers.map(function(o){return o.id}).join(',')))});
+  t('C24','تغيير الباقة من التطبيق يصل لقرارات الوكيل',function(){var r=S.q.clean.filter(function(c){return c.plan==='Standard'})[0].customer_ref,keep=S.accounts;S.accounts=Object.assign({},keep);S.accounts[r]={plan:'Pro'};runPipeline(S.raw);var p=S.byRef[r]&&S.byRef[r].plan;S.accounts=keep;runPipeline(S.raw);return p==='Pro'||('الباقة '+p)});
   t('C15','الصفحة تعلن UTF-8 والعربية من اليمين لليسار',function(){return document.characterSet==='UTF-8'&&document.documentElement.dir==='rtl'||document.characterSet});
   t('C14','الصفحة بعرض الشاشة بلا تمرير أفقي',function(){return !(window.innerWidth>0)||document.documentElement.scrollWidth<=window.innerWidth+1||'أعرض من الشاشة'});
   return T;
